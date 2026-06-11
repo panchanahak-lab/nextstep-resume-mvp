@@ -1,32 +1,84 @@
 
 import React, { useState, useEffect } from 'react';
 import { JobApplication, JobStatus } from '../types';
+import { supabase } from '../lib/supabase';
 
-const JobTracker: React.FC = () => {
+interface JobTrackerProps {
+  userId?: string;
+}
+
+const JobTracker: React.FC<JobTrackerProps> = ({ userId }) => {
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newJob, setNewJob] = useState({ company: '', role: '', status: 'Saved' as JobStatus });
 
-  // Load from LocalStorage
+  // Sync jobs list with Supabase or LocalStorage on mount and when userId changes
   useEffect(() => {
-    const savedJobs = localStorage.getItem('nextstep_jobs');
-    if (savedJobs) {
-      setJobs(JSON.parse(savedJobs));
-    } else {
-        // Initial Dummy Data
-        setJobs([
-            { id: '1', company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
-            { id: '2', company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
-        ]);
-    }
-  }, []);
+    const loadJobsData = async () => {
+      if (userId) {
+        try {
+          const { data: dbData, error } = await supabase
+            .from('jobs')
+            .select('jobs_list')
+            .eq('user_id', userId)
+            .maybeSingle();
 
-  // Save to LocalStorage
+          if (error) {
+            console.error("Error fetching jobs from Supabase:", error.message);
+          } else if (dbData && dbData.jobs_list) {
+            setJobs(dbData.jobs_list as JobApplication[]);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to load jobs from Supabase:", err);
+        }
+      }
+
+      // Fallback to LocalStorage if offline/guest or if no database record exists
+      try {
+        const savedJobs = localStorage.getItem('nextstep_jobs');
+        if (savedJobs) {
+          setJobs(JSON.parse(savedJobs));
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to parse local jobs list:", e);
+      }
+
+      // Initial Dummy Data
+      setJobs([
+        { id: '1', company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
+        { id: '2', company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
+      ]);
+    };
+
+    loadJobsData();
+  }, [userId]);
+
+  // Auto-save to LocalStorage, and sync to Supabase (debounced)
   useEffect(() => {
     if (jobs.length > 0) {
-        localStorage.setItem('nextstep_jobs', JSON.stringify(jobs));
+      localStorage.setItem('nextstep_jobs', JSON.stringify(jobs));
     }
-  }, [jobs]);
+
+    if (!userId) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await supabase
+          .from('jobs')
+          .upsert({
+            user_id: userId,
+            jobs_list: jobs,
+            updated_at: new Date().toISOString()
+          });
+      } catch (err) {
+        console.error("Error saving jobs to Supabase:", err);
+      }
+    }, 1500); // 1.5 seconds debounce for saving to the database
+
+    return () => clearTimeout(timer);
+  }, [jobs, userId]);
 
   const addJob = () => {
     if (!newJob.company || !newJob.role) return;

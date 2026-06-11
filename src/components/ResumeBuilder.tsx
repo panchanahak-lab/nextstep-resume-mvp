@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
+import { supabase } from '../lib/supabase';
 
 // --- TYPES ---
 
@@ -65,31 +66,12 @@ const EMPTY_DATA: ResumeData = {
   education: [], experience: [], hardSkills: '', softSkills: '', certifications: '', languages: ''
 };
 
-const ResumeBuilder: React.FC = () => {
-  // Robust initialization to prevent crashes from bad localStorage data
-  const [data, setData] = useState<ResumeData>(() => {
-    try {
-      const saved = localStorage.getItem('nextstep_resume_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Merge with INITIAL_DATA structure to ensure all fields (especially arrays) exist
-        return {
-          ...INITIAL_DATA,
-          ...parsed,
-          // Explicitly fallback to empty arrays if they are undefined in saved data
-          education: Array.isArray(parsed.education) ? parsed.education : [],
-          experience: Array.isArray(parsed.experience) ? parsed.experience : [],
-          // Ensure strings exist
-          fullName: parsed.fullName || '',
-          summary: parsed.summary || ''
-        };
-      }
-    } catch (e) {
-      console.error("Failed to parse resume data", e);
-    }
-    return INITIAL_DATA;
-  });
+interface ResumeBuilderProps {
+  userId?: string;
+}
 
+const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
+  const [data, setData] = useState<ResumeData>(INITIAL_DATA);
   const [auditIssues, setAuditIssues] = useState<string[]>([]);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState<string>('contact');
@@ -97,10 +79,74 @@ const ResumeBuilder: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
 
-  // Auto-save to LocalStorage
+  // Sync data with Supabase or LocalStorage on mount and when userId changes
+  useEffect(() => {
+    const loadResumeData = async () => {
+      if (userId) {
+        try {
+          const { data: dbData, error } = await supabase
+            .from('resumes')
+            .select('resume_data')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (error) {
+            console.error("Error fetching resume from Supabase:", error.message);
+          } else if (dbData && dbData.resume_data) {
+            setData(dbData.resume_data as ResumeData);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to load from Supabase:", err);
+        }
+      }
+
+      // Fallback to LocalStorage if offline/guest or if no database record exists
+      try {
+        const saved = localStorage.getItem('nextstep_resume_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setData({
+            ...INITIAL_DATA,
+            ...parsed,
+            education: Array.isArray(parsed.education) ? parsed.education : [],
+            experience: Array.isArray(parsed.experience) ? parsed.experience : [],
+            fullName: parsed.fullName || '',
+            summary: parsed.summary || ''
+          });
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to parse local resume data:", e);
+      }
+      setData(INITIAL_DATA);
+    };
+
+    loadResumeData();
+  }, [userId]);
+
+  // Auto-save to LocalStorage, and sync to Supabase (debounced)
   useEffect(() => {
     localStorage.setItem('nextstep_resume_data', JSON.stringify(data));
-  }, [data]);
+
+    if (!userId) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await supabase
+          .from('resumes')
+          .upsert({
+            user_id: userId,
+            resume_data: data,
+            updated_at: new Date().toISOString()
+          });
+      } catch (err) {
+        console.error("Error saving resume to Supabase:", err);
+      }
+    }, 1500); // 1.5 seconds debounce for saving to the database
+
+    return () => clearTimeout(timer);
+  }, [data, userId]);
 
   // Handle Mobile Scaling for A4 Preview
   useEffect(() => {

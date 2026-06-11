@@ -1,49 +1,128 @@
 
 import React, { useState, useEffect } from 'react';
+import { supabase, hasValidSupabaseConfig } from '../lib/supabase';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode: 'signin' | 'signup';
-  onLoginSuccess: () => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onLoginSuccess }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) => {
   const [mode, setMode] = useState(initialMode);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    identifier: '', // email or username
+    identifier: '', // email
     password: ''
   });
 
-  // Reset mode and form when modal opens
+  // Reset mode, error, and form when modal opens
   useEffect(() => {
     setMode(initialMode);
+    setError(null);
     setFormData({ name: '', identifier: '', password: '' });
   }, [initialMode, isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError(null);
+    setLoading(true);
+
+    const isSupabaseConfigured = hasValidSupabaseConfig();
+
     if (mode === 'signin') {
       // Admin Check Logic - Supports 'username' or 'admin'
       const isAdminUser = formData.identifier.toLowerCase() === 'username' || formData.identifier.toLowerCase() === 'admin';
       
       if (isAdminUser && formData.password === 'password') {
         alert("👑 Admin Access Granted!\n\nWelcome back, Administrator.");
-        onLoginSuccess();
+        if (isSupabaseConfigured) {
+          // Attempt login via Supabase with default admin account
+          const { error: adminError } = await supabase.auth.signInWithPassword({
+            email: 'admin@nextstepresume.ai',
+            password: 'password'
+          });
+          if (adminError) {
+            console.warn("Failed to sign in with Supabase admin account, using offline demo session.", adminError.message);
+          }
+        } else {
+          alert("Note: Supabase is not configured yet. Running in offline demo mode.");
+        }
+        setLoading(false);
+        onClose();
+        return;
+      }
+
+      // Standard Supabase login
+      if (isSupabaseConfigured) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.identifier,
+          password: formData.password
+        });
+
+        if (signInError) {
+          setError(signInError.message);
+          setLoading(false);
+          return;
+        }
       } else {
-        // Standard User Login Mockup
-        alert(`✅ Successfully signed in as ${formData.identifier}`);
-        onLoginSuccess();
+        setError("Supabase is not configured yet. Create a connection by setting VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.");
+        setLoading(false);
+        return;
       }
     } else {
-      // Sign Up Mockup
-      alert(`✅ Account created for ${formData.name}!`);
-      onLoginSuccess();
+      // Sign Up
+      if (isSupabaseConfigured) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: formData.identifier,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.name
+            }
+          }
+        });
+
+        if (signUpError) {
+          setError(signUpError.message);
+          setLoading(false);
+          return;
+        } else {
+          alert(`✅ Account created for ${formData.name}! Please check your email to confirm registration.`);
+        }
+      } else {
+        setError("Supabase is not configured yet. Create a connection by setting VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.");
+        setLoading(false);
+        return;
+      }
     }
     
+    setLoading(false);
     onClose();
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'linkedin_oidc') => {
+    setError(null);
+    if (!hasValidSupabaseConfig()) {
+      setError("Supabase is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.");
+      return;
+    }
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (authError) {
+        setError(authError.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during social login.');
+    }
   };
 
   const fillAdminCredentials = () => {
@@ -88,11 +167,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
 
             {/* Social Auth */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <button className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button 
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
+              >
                 <i className="fab fa-google text-red-500 mr-2"></i>
                 Google
               </button>
-              <button className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button 
+                type="button"
+                onClick={() => handleSocialLogin('linkedin_oidc')}
+                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
+              >
                 <i className="fab fa-linkedin text-[#0077b5] text-lg mr-2"></i>
                 LinkedIn
               </button>
@@ -107,6 +194,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
               </div>
             </div>
 
+            {/* Error Message Display */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium flex items-start gap-2">
+                <i className="fas fa-exclamation-circle mt-0.5 flex-shrink-0"></i>
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Form */}
             <form className="space-y-4" onSubmit={handleSubmit}>
               {mode === 'signup' && (
@@ -119,21 +214,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
                     placeholder="John Doe"
                     required={mode === 'signup'}
+                    disabled={loading}
                   />
                 </div>
               )}
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  {mode === 'signin' ? 'Email or Username' : 'Email Address'}
+                  Email Address
                 </label>
                 <input 
-                  type={mode === 'signin' ? "text" : "email"}
+                  type="email"
                   value={formData.identifier}
                   onChange={(e) => setFormData({...formData, identifier: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
-                  placeholder={mode === 'signin' ? "e.g. username" : "john@example.com"}
+                  placeholder="john@example.com"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -146,6 +243,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
                   placeholder="••••••••"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -161,8 +259,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
 
               <button 
                 type="submit"
-                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2"
+                disabled={loading}
+                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2 flex items-center justify-center"
               >
+                {loading ? (
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : null}
                 {mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
             </form>
@@ -192,14 +297,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
            {mode === 'signin' ? (
              <p className="text-slate-600">
                Don't have an account?{' '}
-               <button onClick={() => setMode('signup')} className="text-brand-500 font-bold hover:underline">
+               <button onClick={() => setMode('signup')} className="text-brand-500 font-bold hover:underline" disabled={loading}>
                  Sign up
                </button>
              </p>
            ) : (
              <p className="text-slate-600">
                Already have an account?{' '}
-               <button onClick={() => setMode('signin')} className="text-brand-500 font-bold hover:underline">
+               <button onClick={() => setMode('signin')} className="text-brand-500 font-bold hover:underline" disabled={loading}>
                  Log in
                </button>
              </p>
