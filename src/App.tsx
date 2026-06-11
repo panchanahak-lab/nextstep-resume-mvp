@@ -11,6 +11,8 @@ import AuthModal from './components/AuthModal';
 import ATSChecker from './components/ATSChecker';
 import LiveInterview from './components/LiveInterview';
 import ResumeBuilder from './components/ResumeBuilder';
+import JobTracker from './components/JobTracker';
+
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -37,6 +39,7 @@ function App() {
         <Hero />
         <ATSChecker isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
         <ResumeBuilder />
+        <JobTracker />
         <LiveInterview />
         <WhyChooseUs />
         <Services />
