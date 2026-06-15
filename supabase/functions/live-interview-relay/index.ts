@@ -4,6 +4,19 @@ import { getServiceClient } from "../_shared/supabase.ts";
 const LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
 const MAX_SESSION_MS = 10 * 60 * 1000;
 
+async function normalizeSocketData(data: unknown): Promise<string> {
+  if (typeof data === "string") return data;
+  if (data instanceof ArrayBuffer) return new TextDecoder().decode(data);
+  if (ArrayBuffer.isView(data)) {
+    return new TextDecoder().decode(data);
+  }
+  if (data && typeof (data as { text?: unknown }).text === "function") {
+    return await (data as { text: () => Promise<string> }).text();
+  }
+
+  return JSON.stringify(data);
+}
+
 async function authenticate(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("access_token")
@@ -64,7 +77,7 @@ Deno.serve(async (req) => {
   const { data: allowed, error: rateLimitError } = await supabase.rpc("check_ai_rate_limit", {
     p_user_id: userId,
     p_feature: "live-interview",
-    p_limit: 3,
+    p_limit: 30,
     p_window_seconds: 60 * 60,
   });
 
@@ -91,6 +104,7 @@ Deno.serve(async (req) => {
   let sessionId: string | null = null;
   let closed = false;
   let persisted = false;
+  let geminiSetupComplete = false;
   const pendingClientMessages: string[] = [];
 
   const closeBoth = (code = 1000, reason = "Session ended") => {
@@ -111,6 +125,16 @@ Deno.serve(async (req) => {
   };
 
   const timeout = setTimeout(() => closeBoth(1000, "Maximum interview length reached."), MAX_SESSION_MS);
+
+  const flushPendingClientMessages = () => {
+    while (
+      pendingClientMessages.length > 0
+      && gemini.readyState === WebSocket.OPEN
+      && geminiSetupComplete
+    ) {
+      gemini.send(pendingClientMessages.shift()!);
+    }
+  };
 
   socket.onopen = async () => {
     const { data, error } = await supabase
@@ -135,25 +159,32 @@ Deno.serve(async (req) => {
 
   gemini.onopen = () => {
     gemini.send(JSON.stringify(buildGeminiSetup(jobRole, language)));
-    while (pendingClientMessages.length > 0 && gemini.readyState === WebSocket.OPEN) {
-      gemini.send(pendingClientMessages.shift()!);
-    }
   };
 
-  socket.onmessage = (event) => {
-    const payload = typeof event.data === "string" ? event.data : JSON.stringify(event.data);
+  socket.onmessage = async (event) => {
+    const payload = await normalizeSocketData(event.data);
     inputBytes += new TextEncoder().encode(payload).length;
 
-    if (gemini.readyState === WebSocket.OPEN) {
+    if (gemini.readyState === WebSocket.OPEN && geminiSetupComplete) {
       gemini.send(payload);
     } else {
       pendingClientMessages.push(payload);
     }
   };
 
-  gemini.onmessage = (event) => {
-    const payload = typeof event.data === "string" ? event.data : JSON.stringify(event.data);
+  gemini.onmessage = async (event) => {
+    const payload = await normalizeSocketData(event.data);
     outputBytes += new TextEncoder().encode(payload).length;
+
+    try {
+      const message = JSON.parse(payload);
+      if (message.setupComplete || Object.keys(message).length === 0) {
+        geminiSetupComplete = true;
+        flushPendingClientMessages();
+      }
+    } catch (_) {
+      // Non-JSON payloads are still forwarded to the browser below.
+    }
 
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(payload);

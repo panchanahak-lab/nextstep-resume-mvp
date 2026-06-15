@@ -209,7 +209,7 @@ const LiveInterview: React.FC = () => {
           const pcm = createBlob(e.inputBuffer.getChannelData(0));
           relaySocket.send(JSON.stringify({
             realtimeInput: {
-              mediaChunks: [pcm],
+              audio: pcm,
             },
           }));
         };
