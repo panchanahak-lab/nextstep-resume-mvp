@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -12,26 +11,25 @@ import ATSChecker from './components/ATSChecker';
 import LiveInterview from './components/LiveInterview';
 import ResumeBuilder from './components/ResumeBuilder';
 import JobTracker from './components/JobTracker';
-import { supabase } from './lib/supabaseClient';
 import Pricing from './components/Pricing';
 import AdminPanel from './components/AdminPanel';
 import LegalPages from './components/LegalPages';
-
+import { supabase } from './lib/supabaseClient';
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     if (!supabase) return;
 
     supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(Boolean(data.session));
+      setUser(data.session?.user ?? null);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(Boolean(session));
+      setUser(session?.user ?? null);
     });
 
     return () => {
@@ -48,13 +46,24 @@ function App() {
     setIsAuthOpen(false);
   };
 
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
+  const handleLogout = async () => {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert(`Error signing out: ${error.message}`);
+    }
   };
+
+  const isLoggedIn = Boolean(user);
 
   return (
     <div className="min-h-screen flex flex-col font-sans animate-fade-in">
-      <Navbar onOpenAuth={openAuth} />
+      <Navbar
+        onOpenAuth={openAuth}
+        isLoggedIn={isLoggedIn}
+        userEmail={user?.email || undefined}
+        onLogout={handleLogout}
+      />
       <main className="flex-grow">
         <Hero />
         <ATSChecker isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
@@ -70,11 +79,10 @@ function App() {
         <LegalPages />
       </main>
       <Footer />
-      <AuthModal 
-        isOpen={isAuthOpen} 
-        onClose={closeAuth} 
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={closeAuth}
         initialMode={authMode}
-        onLoginSuccess={handleLoginSuccess}
       />
     </div>
   );

@@ -5,10 +5,9 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode: 'signin' | 'signup';
-  onLoginSuccess: () => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onLoginSuccess }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) => {
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({
     name: '',
@@ -54,10 +53,27 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
         return;
       }
 
-      onLoginSuccess();
       onClose();
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'linkedin_oidc') => {
+    if (!supabase || !isSupabaseConfigured) {
+      setErrorMessage('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
     }
   };
 
@@ -91,11 +107,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <button type="button" className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
+              >
                 <i className="fab fa-google text-red-500 mr-2"></i>
                 Google
               </button>
-              <button type="button" className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('linkedin_oidc')}
+                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
+              >
                 <i className="fab fa-linkedin text-[#0077b5] text-lg mr-2"></i>
                 LinkedIn
               </button>
@@ -110,6 +134,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
               </div>
             </div>
 
+            {errorMessage && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
+                {errorMessage}
+              </div>
+            )}
+
             <form className="space-y-4" onSubmit={handleSubmit}>
               {mode === 'signup' && (
                 <div>
@@ -121,6 +151,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
                     placeholder="John Doe"
                     required={mode === 'signup'}
+                    disabled={isSubmitting}
                   />
                 </div>
               )}
@@ -136,6 +167,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
                   placeholder="john@example.com"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -148,6 +180,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
                   placeholder="Password"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -164,31 +197,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2 disabled:opacity-60"
+                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2 disabled:opacity-60 flex items-center justify-center"
               >
+                {isSubmitting && (
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
                 {isSubmitting ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
             </form>
-
-            {errorMessage && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
-                {errorMessage}
-              </div>
-            )}
          </div>
 
          <div className="bg-slate-50 px-8 py-4 text-center text-sm border-t border-slate-100">
            {mode === 'signin' ? (
              <p className="text-slate-600">
                Don't have an account?{' '}
-               <button onClick={() => setMode('signup')} className="text-brand-500 font-bold hover:underline">
+               <button onClick={() => setMode('signup')} className="text-brand-500 font-bold hover:underline" disabled={isSubmitting}>
                  Sign up
                </button>
              </p>
            ) : (
              <p className="text-slate-600">
                Already have an account?{' '}
-               <button onClick={() => setMode('signin')} className="text-brand-500 font-bold hover:underline">
+               <button onClick={() => setMode('signin')} className="text-brand-500 font-bold hover:underline" disabled={isSubmitting}>
                  Log in
                </button>
              </p>

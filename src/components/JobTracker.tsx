@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { JobApplication, JobStatus } from '../types';
 import { deleteStoredJob, loadJobs, upsertJob } from '../lib/dataClient';
@@ -8,30 +7,34 @@ const JobTracker: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newJob, setNewJob] = useState({ company: '', role: '', status: 'Saved' as JobStatus });
 
-  // Load from LocalStorage
   useEffect(() => {
     loadJobs().then((storedJobs) => {
       if (storedJobs?.length) {
         setJobs(storedJobs);
         return;
       }
-      const savedJobs = localStorage.getItem('nextstep_jobs');
-      if (savedJobs) {
-        setJobs(JSON.parse(savedJobs));
-      } else {
-          setJobs([
-              { id: crypto.randomUUID(), company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
-              { id: crypto.randomUUID(), company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
-          ]);
+
+      try {
+        const savedJobs = localStorage.getItem('nextstep_jobs');
+        if (savedJobs) {
+          setJobs(JSON.parse(savedJobs));
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to parse local jobs list:", e);
       }
+
+      setJobs([
+        { id: crypto.randomUUID(), company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
+        { id: crypto.randomUUID(), company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
+      ]);
     });
   }, []);
 
-  // Save to LocalStorage
   useEffect(() => {
     if (jobs.length > 0) {
-        localStorage.setItem('nextstep_jobs', JSON.stringify(jobs));
-        jobs.forEach(job => upsertJob(job));
+      localStorage.setItem('nextstep_jobs', JSON.stringify(jobs));
+      jobs.forEach(job => upsertJob(job));
     }
   }, [jobs]);
 
@@ -76,7 +79,7 @@ const JobTracker: React.FC = () => {
              <h2 className="font-heading text-3xl font-bold text-navy-900">Job Application Tracker</h2>
              <p className="text-slate-600 text-sm">Organize your job search with our Kanban board.</p>
            </div>
-           <button 
+           <button
              onClick={() => setShowAddModal(true)}
              className="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2 rounded-lg font-bold shadow-md transition-all"
            >
@@ -93,11 +96,11 @@ const JobTracker: React.FC = () => {
                     {jobs.filter(j => j.status === status).length}
                  </span>
               </div>
-              
+
               <div className="space-y-3 flex-grow">
                 {jobs.filter(j => j.status === status).map(job => (
                   <div key={job.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 hover:shadow-md transition-all relative group">
-                    <button 
+                    <button
                        onClick={() => deleteJob(job.id)}
                        className="absolute top-2 right-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                     >
@@ -105,16 +108,16 @@ const JobTracker: React.FC = () => {
                     </button>
                     <h4 className="font-bold text-navy-900">{job.role}</h4>
                     <p className="text-sm text-slate-600 mb-3">{job.company}</p>
-                    
+
                     <div className="flex justify-between mt-2 pt-2 border-t border-slate-50">
-                       <button 
+                       <button
                          onClick={() => moveJob(job.id, 'prev')}
                          disabled={status === 'Saved'}
                          className="text-xs text-slate-400 hover:text-navy-900 disabled:opacity-20"
                        >
                          <i className="fas fa-chevron-left"></i>
                        </button>
-                       <button 
+                       <button
                          onClick={() => moveJob(job.id, 'next')}
                          disabled={status === 'Offer'}
                          className="text-xs text-slate-400 hover:text-navy-900 disabled:opacity-20"
@@ -129,21 +132,20 @@ const JobTracker: React.FC = () => {
           ))}
         </div>
 
-        {/* Add Job Modal */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/50 backdrop-blur-sm p-4">
              <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
                 <h3 className="text-xl font-bold text-navy-900 mb-4">Add New Job</h3>
                 <div className="space-y-4">
-                   <input 
-                     type="text" 
+                   <input
+                     type="text"
                      placeholder="Company Name"
                      className="w-full p-3 border rounded-lg"
                      value={newJob.company}
                      onChange={e => setNewJob({...newJob, company: e.target.value})}
                    />
-                   <input 
-                     type="text" 
+                   <input
+                     type="text"
                      placeholder="Job Role"
                      className="w-full p-3 border rounded-lg"
                      value={newJob.role}

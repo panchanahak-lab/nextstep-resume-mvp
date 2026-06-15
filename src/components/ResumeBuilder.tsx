@@ -67,30 +67,7 @@ const EMPTY_DATA: ResumeData = {
 };
 
 const ResumeBuilder: React.FC = () => {
-  // Robust initialization to prevent crashes from bad localStorage data
-  const [data, setData] = useState<ResumeData>(() => {
-    try {
-      const saved = localStorage.getItem('nextstep_resume_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Merge with INITIAL_DATA structure to ensure all fields (especially arrays) exist
-        return {
-          ...INITIAL_DATA,
-          ...parsed,
-          // Explicitly fallback to empty arrays if they are undefined in saved data
-          education: Array.isArray(parsed.education) ? parsed.education : [],
-          experience: Array.isArray(parsed.experience) ? parsed.experience : [],
-          // Ensure strings exist
-          fullName: parsed.fullName || '',
-          summary: parsed.summary || ''
-        };
-      }
-    } catch (e) {
-      console.error("Failed to parse resume data", e);
-    }
-    return INITIAL_DATA;
-  });
-
+  const [data, setData] = useState<ResumeData>(INITIAL_DATA);
   const [auditIssues, setAuditIssues] = useState<string[]>([]);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -109,7 +86,7 @@ const ResumeBuilder: React.FC = () => {
     });
   }, []);
 
-  // Auto-save to LocalStorage
+  // Auto-save to LocalStorage, and sync to Supabase (debounced)
   useEffect(() => {
     localStorage.setItem('nextstep_resume_data', JSON.stringify(data));
     setSaveState('saving');
