@@ -1,34 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { analyzeResume, type AnalysisResult } from '../lib/aiClient';
+import { saveAtsReport } from '../lib/dataClient';
 
 interface ATSCheckerProps {
   isLoggedIn: boolean;
   onOpenAuth: (mode: 'signin' | 'signup') => void;
-}
-
-// Define the structure of the analysis result
-interface AnalysisResult {
-  overallScore: number;
-  matchScore?: number; // Feature 1: JD Match
-  sectionScores: {
-    summary: number;
-    experience: number;
-    education: number;
-    skills: number;
-  };
-  formattingScore: number;
-  keywordScore: number;
-  detectedKeywords: string[];
-  missingKeywords: string[];
-  issues: {
-    title: string;
-    location: string;
-    description: string;
-    highlight: string;
-    suggestion: string;
-    severity: 'critical' | 'warning' | 'info';
-  }[];
 }
 
 const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
@@ -91,10 +68,13 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
 
   const startAnalysis = async () => {
     if (!file) return;
+    if (!isLoggedIn) {
+      onOpenAuth('signin');
+      return;
+    }
     setStatus('analyzing');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const base64Data = await fileToBase64(file);
 
       // robust mime type detection
@@ -106,90 +86,23 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
         else if (name.endsWith('.doc')) mimeType = 'application/msword';
       }
 
-      const hasJD = jobDescription.trim().length > 0;
-      
-      const promptText = hasJD 
-        ? `Analyze this resume against the provided Job Description. Calculate a Match Score based on semantic similarity and keyword presence. Also perform detailed scoring by section.` 
-        : `Please analyze this resume for ATS compatibility. Provide overall scores and detailed breakdowns for Experience, Education, Summary, and Skills sections.`;
-
-      const parts = [
-        {
-          inlineData: {
-            mimeType: mimeType || 'application/pdf',
-            data: base64Data
-          }
+      const resultJson = await analyzeResume({
+        file: {
+          name: file.name,
+          mimeType: mimeType || 'application/pdf',
+          data: base64Data,
         },
-        { text: promptText }
-      ];
-
-      if (hasJD) {
-        parts.push({ text: `JOB DESCRIPTION:\n${jobDescription}` });
-      }
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: { parts },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              overallScore: { type: Type.NUMBER, description: "Overall ATS/Quality score from 0-100" },
-              matchScore: { type: Type.NUMBER, description: "Similarity score vs Job Description (0-100). Return 0 if no JD provided." },
-              sectionScores: {
-                type: Type.OBJECT,
-                properties: {
-                  summary: { type: Type.NUMBER, description: "Quality score for the summary section (0-100)" },
-                  experience: { type: Type.NUMBER, description: "Quality score for the experience section (0-100)" },
-                  education: { type: Type.NUMBER, description: "Quality score for the education section (0-100)" },
-                  skills: { type: Type.NUMBER, description: "Quality score for the skills section (0-100)" },
-                },
-                required: ["summary", "experience", "education", "skills"],
-              },
-              formattingScore: { type: Type.NUMBER, description: "Formatting score from 0-100" },
-              keywordScore: { type: Type.NUMBER, description: "Keyword optimization score from 0-100" },
-              detectedKeywords: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "List of professional skills/keywords found"
-              },
-              missingKeywords: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "List of missing high-value keywords (if JD provided, prioritize missing JD keywords)"
-              },
-              issues: {
-                type: Type.ARRAY, 
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    location: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    highlight: { type: Type.STRING, description: "The specific text snippet with the issue" },
-                    suggestion: { type: Type.STRING },
-                    severity: { type: Type.STRING, description: "One of: critical, warning, info" }
-                  },
-                  required: ["title", "location", "description", "highlight", "suggestion", "severity"],
-                }
-              }
-            },
-            required: ["overallScore", "sectionScores", "formattingScore", "keywordScore", "detectedKeywords", "missingKeywords", "issues"],
-          },
-          systemInstruction: `You are an expert ATS optimization specialist. 
-          Parse the resume. If a Job Description is present, perform a deep semantic match (like Cosine Similarity) to determine the 'matchScore' and identify 'missingKeywords' strictly relevant to the JD.
-          Analyze individual sections (Summary, Experience, Education, Skills) and provide specific quality scores (0-100) for each based on content impact, quantification of achievements, clarity, and ATS parsing friendliness.`
-        }
+        jobDescription,
       });
-
-      const resultText = response.text;
-      if (resultText) {
-        const resultJson = JSON.parse(resultText) as AnalysisResult;
-        setAnalysisResult(resultJson);
-        setStatus('complete');
-      } else {
-        throw new Error("Empty response from model");
-      }
+      setAnalysisResult(resultJson);
+      await saveAtsReport({
+        resumeName: file.name,
+        jobDescriptionPresent: jobDescription.trim().length > 0,
+        overallScore: resultJson.overallScore,
+        readinessScore: resultJson.matchScore || resultJson.overallScore,
+        result: resultJson,
+      });
+      setStatus('complete');
 
     } catch (error) {
       console.error("Analysis failed:", error);
@@ -495,6 +408,13 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
                         </div>
                       </div>
                     </div>
+
+                    {analysisResult.readinessSummary && (
+                      <div className="text-left bg-brand-50 border border-brand-100 rounded-lg p-4 mb-6">
+                        <p className="text-xs font-bold text-brand-700 uppercase mb-1">Resume Readiness</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{analysisResult.readinessSummary}</p>
+                      </div>
+                    )}
                     
                     <a href="#pricing" className="block w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg transition-all text-sm mb-3">
                       Fix All Errors Now
@@ -571,6 +491,28 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
                         </div>
                        );
                      })}
+
+                     {(analysisResult.optimizationPlan?.length || analysisResult.improvedSummary) && (
+                       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                         <h4 className="font-bold text-navy-900 text-sm uppercase tracking-wide mb-3 flex items-center">
+                           <i className="fas fa-wand-magic-sparkles text-brand-500 mr-2"></i> ATS Optimization
+                         </h4>
+                         {analysisResult.improvedSummary && (
+                           <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 mb-4">
+                             <p className="text-xs text-brand-700 font-bold uppercase mb-1">Personalized AI Summary</p>
+                             <p className="text-sm text-slate-700 leading-relaxed">{analysisResult.improvedSummary}</p>
+                           </div>
+                         )}
+                         <div className="space-y-2">
+                           {analysisResult.optimizationPlan?.map((item, i) => (
+                             <div key={i} className="flex gap-3 text-sm text-slate-700">
+                               <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                               <span>{item}</span>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
                    </div>
                 </div>
               </div>

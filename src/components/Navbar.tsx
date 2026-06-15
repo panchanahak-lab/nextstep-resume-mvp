@@ -36,6 +36,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
               </span>
               Interview Prep
             </a>
+            <a href="#pricing" className="text-slate-600 hover:text-navy-900 font-medium transition-colors">Packs</a>
+            <a href="#admin" className="text-slate-600 hover:text-navy-900 font-medium transition-colors">Admin</a>
             <div className="flex items-center space-x-4 ml-4">
               {isLoggedIn ? (
                 <>
@@ -43,7 +45,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
                     <i className="far fa-user-circle text-lg text-brand-500"></i>
                     {userEmail}
                   </span>
-                  <button 
+                  <button
                     onClick={onLogout}
                     className="bg-navy-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg font-medium shadow-md transition-all duration-300 transform hover:scale-105"
                   >
@@ -52,13 +54,13 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
                 </>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={() => onOpenAuth('signin')}
                     className="text-navy-900 hover:text-brand-500 font-semibold transition-colors"
                   >
                     Log In
                   </button>
-                  <button 
+                  <button
                     onClick={() => onOpenAuth('signup')}
                     className="bg-navy-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg font-medium shadow-md transition-all duration-300 transform hover:scale-105"
                   >
@@ -89,6 +91,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
             <a href="#builder" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Builder</a>
             <a href="#tracker" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Tracker</a>
             <a href="#interview" className="block px-3 py-3 rounded-md text-base font-medium text-brand-600 bg-brand-50 hover:bg-brand-100" onClick={() => setIsOpen(false)}>Interview Prep</a>
+            <a href="#pricing" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Packs</a>
+            <a href="#admin" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Admin</a>
             <div className="pt-4 flex flex-col gap-3">
               {isLoggedIn ? (
                 <>
@@ -96,7 +100,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
                     <i className="far fa-user-circle text-lg text-brand-500"></i>
                     {userEmail}
                   </div>
-                  <button 
+                  <button
                     onClick={() => { setIsOpen(false); onLogout(); }}
                     className="w-full bg-navy-900 text-white px-5 py-3 rounded-lg font-medium shadow-md hover:bg-slate-800"
                   >
@@ -105,13 +109,13 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth, isLoggedIn, userEmail, onLo
                 </>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={() => { setIsOpen(false); onOpenAuth('signin'); }}
                     className="w-full text-center py-3 rounded-lg font-semibold text-navy-900 border border-slate-200 hover:bg-slate-50"
                   >
                     Log In
                   </button>
-                  <button 
+                  <button
                     onClick={() => { setIsOpen(false); onOpenAuth('signup'); }}
                     className="w-full bg-navy-900 text-white px-5 py-3 rounded-lg font-medium shadow-md hover:bg-slate-800"
                   >

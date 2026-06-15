@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyChooseUs from './components/WhyChooseUs';
@@ -12,7 +11,10 @@ import ATSChecker from './components/ATSChecker';
 import LiveInterview from './components/LiveInterview';
 import ResumeBuilder from './components/ResumeBuilder';
 import JobTracker from './components/JobTracker';
-import { supabase } from './lib/supabase';
+import Pricing from './components/Pricing';
+import AdminPanel from './components/AdminPanel';
+import LegalPages from './components/LegalPages';
+import { supabase } from './lib/supabaseClient';
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -20,18 +22,18 @@ function App() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
     });
 
-    // Listen to auth state transitions
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
     return () => {
-      subscription.unsubscribe();
+      listener.subscription.unsubscribe();
     };
   }, []);
 
@@ -45,39 +47,41 @@ function App() {
   };
 
   const handleLogout = async () => {
+    if (!supabase) return;
     const { error } = await supabase.auth.signOut();
     if (error) {
       alert(`Error signing out: ${error.message}`);
-    } else {
-      alert('Logged out successfully');
     }
   };
 
-  const isLoggedIn = !!user;
+  const isLoggedIn = Boolean(user);
 
   return (
     <div className="min-h-screen flex flex-col font-sans animate-fade-in">
-      <Navbar 
-        onOpenAuth={openAuth} 
-        isLoggedIn={isLoggedIn} 
-        userEmail={user?.email || undefined} 
-        onLogout={handleLogout} 
+      <Navbar
+        onOpenAuth={openAuth}
+        isLoggedIn={isLoggedIn}
+        userEmail={user?.email || undefined}
+        onLogout={handleLogout}
       />
       <main className="flex-grow">
         <Hero />
         <ATSChecker isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
-        <ResumeBuilder userId={user?.id} />
-        <JobTracker userId={user?.id} />
+        <ResumeBuilder />
+        <JobTracker />
         <LiveInterview />
+        <Pricing isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
+        <AdminPanel />
         <WhyChooseUs />
         <Services />
         <Testimonials />
         <BottomCTA />
+        <LegalPages />
       </main>
       <Footer />
-      <AuthModal 
-        isOpen={isAuthOpen} 
-        onClose={closeAuth} 
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={closeAuth}
         initialMode={authMode}
       />
     </div>

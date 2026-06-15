@@ -1,6 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Type, Modality } from "@google/genai";
+import {
+  createLiveInterviewSocket,
+  getInterviewFeedback,
+  type InterviewFeedback,
+  type TranscriptItem,
+} from '../lib/aiClient';
 
 // --- ENCODING & DECODING HELPERS ---
 
@@ -54,19 +59,6 @@ async function pcmToAudioBuffer(
   return buffer;
 }
 
-interface TranscriptItem {
-  role: 'user' | 'ai';
-  text: string;
-}
-
-interface InterviewFeedback {
-  score: number;
-  summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  suggestions: string[];
-}
-
 const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Marathi', 'Tamil', 'Telugu', 'Gujarati', 'Kannada', 'Spanish', 'French', 'German'];
 
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
@@ -84,7 +76,7 @@ const LiveInterview: React.FC = () => {
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
-  const sessionRef = useRef<any>(null);
+  const sessionRef = useRef<WebSocket | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextStartTimeRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
@@ -158,75 +150,74 @@ const LiveInterview: React.FC = () => {
       analyserRef.current = analyser;
       drawVisualizer();
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          systemInstruction: `You are a professional, high-pressure interviewer for the position of ${jobRole}. Conduct the interview in ${language}. Ask one question at a time. Be critical but fair. Initial greeting should acknowledge the candidate's resume for ${jobRole}.`,
-        },
-        callbacks: {
-          onopen: () => {
-            setIsConnected(true);
-            setStage('interview');
-            const source = inputCtx.createMediaStreamSource(stream);
-            const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const pcm = createBlob(e.inputBuffer.getChannelData(0));
-              sessionPromise.then(s => s.sendRealtimeInput({ media: pcm }));
-            };
-            source.connect(analyser);
-            analyser.connect(scriptProcessor);
-            scriptProcessor.connect(inputCtx.destination);
-            sessionPromise.then(s => sessionRef.current = s);
-          },
-          onmessage: async (msg: LiveServerMessage) => {
-            if (msg.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              return;
-            }
+      const relaySocket = await createLiveInterviewSocket({ jobRole, language });
+      sessionRef.current = relaySocket;
 
-            if (msg.serverContent?.inputTranscription) currentInputTransRef.current += msg.serverContent.inputTranscription.text;
-            if (msg.serverContent?.outputTranscription) currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
-            
-            if (msg.serverContent?.turnComplete) {
-              setTranscripts(p => [...p, 
-                { role: 'user', text: currentInputTransRef.current }, 
-                { role: 'ai', text: currentOutputTransRef.current }
-              ]);
-              currentInputTransRef.current = '';
-              currentOutputTransRef.current = '';
-            }
+      relaySocket.onopen = () => {
+        setIsConnected(true);
+        setStage('interview');
+        const source = inputCtx.createMediaStreamSource(stream);
+        const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
+        scriptProcessor.onaudioprocess = (e) => {
+          if (relaySocket.readyState !== WebSocket.OPEN) return;
+          const pcm = createBlob(e.inputBuffer.getChannelData(0));
+          relaySocket.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [pcm],
+            },
+          }));
+        };
+        source.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(inputCtx.destination);
+      };
 
-            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (audioData) {
-              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
-              const buffer = await pcmToAudioBuffer(decode(audioData), outputCtx, 24000, 1);
-              const source = outputCtx.createBufferSource();
-              source.buffer = buffer;
-              source.connect(outputNode);
-              source.start(nextStartTimeRef.current);
-              nextStartTimeRef.current += buffer.duration;
-              sourcesRef.current.add(source);
-            }
-          },
-          onerror: (e) => { 
-            console.error(e);
-            cleanupAudio(); 
-            setStage('setup'); 
-            setIsError(true); 
-            setErrorMessage("An error occurred during the session."); 
-          },
-          onclose: () => {
-            setIsConnected(false);
-          }
+      relaySocket.onmessage = async (event) => {
+        const msg = JSON.parse(event.data);
+
+        if (msg.serverContent?.interrupted) {
+          sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
+          sourcesRef.current.clear();
+          nextStartTimeRef.current = 0;
+          return;
         }
-      });
+
+        if (msg.serverContent?.inputTranscription) currentInputTransRef.current += msg.serverContent.inputTranscription.text;
+        if (msg.serverContent?.outputTranscription) currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
+
+        if (msg.serverContent?.turnComplete) {
+          setTranscripts(p => [...p,
+            { role: 'user', text: currentInputTransRef.current },
+            { role: 'ai', text: currentOutputTransRef.current }
+          ]);
+          currentInputTransRef.current = '';
+          currentOutputTransRef.current = '';
+        }
+
+        const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+        if (audioData) {
+          nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
+          const buffer = await pcmToAudioBuffer(decode(audioData), outputCtx, 24000, 1);
+          const source = outputCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(outputNode);
+          source.start(nextStartTimeRef.current);
+          nextStartTimeRef.current += buffer.duration;
+          sourcesRef.current.add(source);
+        }
+      };
+
+      relaySocket.onerror = (e) => {
+        console.error(e);
+        cleanupAudio();
+        setStage('setup');
+        setIsError(true);
+        setErrorMessage("An error occurred during the session.");
+      };
+
+      relaySocket.onclose = () => {
+        setIsConnected(false);
+      };
     } catch (err: any) {
       console.error(err);
       setStage('setup');
@@ -240,29 +231,10 @@ const LiveInterview: React.FC = () => {
     cleanupAudio();
     setIsConnected(false);
     setStage('processing_feedback');
-    
-    const history = transcripts.map(t => `${t.role.toUpperCase()}: ${t.text}`).join('\n');
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const res = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Analyze the following interview for a ${jobRole} position. Provide a score out of 100, a summary, strengths, weaknesses, and specific suggestions for improvement. Return purely JSON.\n\nINTERVIEW LOG:\n${history}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: { 
-              score: { type: Type.NUMBER }, 
-              summary: { type: Type.STRING }, 
-              strengths: { type: Type.ARRAY, items: { type: Type.STRING } }, 
-              weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }, 
-              suggestions: { type: Type.ARRAY, items: { type: Type.STRING } } 
-            },
-            required: ["score", "summary", "strengths", "weaknesses", "suggestions"]
-          }
-        }
-      });
-      setFeedback(JSON.parse(res.text || '{}'));
+      const feedbackResult = await getInterviewFeedback({ jobRole, transcripts });
+      setFeedback(feedbackResult);
       setStage('feedback');
     } catch { 
       setStage('setup'); 
@@ -288,6 +260,10 @@ const LiveInterview: React.FC = () => {
         <div className={`bg-slate-800/40 rounded-3xl border border-slate-700/50 backdrop-blur-md p-6 md:p-10 shadow-2xl ${stage === 'feedback' ? 'printable-content' : ''}`}>
           {stage === 'setup' && (
             <div className="max-w-md mx-auto space-y-6 animate-fade-in">
+              <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-5 text-sm text-slate-200">
+                <p className="font-bold text-brand-300 mb-1">Warm-up</p>
+                <p>Take one calm breath, then answer in this structure: situation, action, result. The AI interviewer will start with one question and adapt to your response.</p>
+              </div>
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-2 tracking-widest">Target Job Role</label>
@@ -429,6 +405,26 @@ const LiveInterview: React.FC = () => {
                  </div>
                </div>
 
+               {feedback.lineFeedback && feedback.lineFeedback.length > 0 && (
+                 <div className="bg-slate-800/40 p-6 rounded-3xl border border-slate-700/50 print:bg-white print:border-slate-200">
+                   <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
+                     <i className="fas fa-list-check"></i> Line-by-line Feedback
+                   </h4>
+                   <div className="space-y-4">
+                     {feedback.lineFeedback.map((item, i) => (
+                       <div key={i} className="bg-navy-900/50 p-4 rounded-xl border border-slate-700/50 print:bg-slate-50 print:text-black print:border-slate-200">
+                         <p className="text-xs text-slate-500 font-bold uppercase mb-1">Your line</p>
+                         <p className="text-sm text-slate-300 italic print:text-black">"{item.quote}"</p>
+                         <p className="text-xs text-slate-500 font-bold uppercase mt-3 mb-1">Feedback</p>
+                         <p className="text-sm text-slate-300 print:text-black">{item.feedback}</p>
+                         <p className="text-xs text-slate-500 font-bold uppercase mt-3 mb-1">Suggested answer</p>
+                         <p className="text-sm text-slate-300 print:text-black">{item.improvedAnswer}</p>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
                <div className="bg-brand-500/5 p-8 rounded-3xl border border-brand-500/20 print:bg-white print:border-brand-200">
                  <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
                     <i className="fas fa-lightbulb"></i> Recommendations
@@ -441,6 +437,22 @@ const LiveInterview: React.FC = () => {
                     ))}
                  </div>
                </div>
+
+               {feedback.suggestedAnswers && feedback.suggestedAnswers.length > 0 && (
+                 <div className="bg-white/5 p-8 rounded-3xl border border-white/10 print:bg-white print:border-slate-200">
+                   <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
+                     <i className="fas fa-comment-dots"></i> Suggested Answers
+                   </h4>
+                   <ul className="space-y-3 text-sm text-slate-300 print:text-black">
+                     {feedback.suggestedAnswers.map((answer, i) => (
+                       <li key={i} className="flex gap-3">
+                         <span className="text-brand-400 font-bold">{i + 1}.</span>
+                         <span>{answer}</span>
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
 
                <div className="flex flex-col sm:flex-row gap-4 print:hidden">
                  <button onClick={() => { setStage('setup'); setTranscripts([]); }} className="flex-1 py-4 bg-brand-500 hover:bg-brand-600 rounded-xl font-bold transition-all">Start New Session</button>

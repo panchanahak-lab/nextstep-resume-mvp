@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { supabase } from '../lib/supabase';
+import { enhanceResumeBullet, generateResumeSummary } from '../lib/aiClient';
+import { loadResumeDraft, saveResumeDraft } from '../lib/dataClient';
 
 // --- TYPES ---
 
@@ -66,87 +66,36 @@ const EMPTY_DATA: ResumeData = {
   education: [], experience: [], hardSkills: '', softSkills: '', certifications: '', languages: ''
 };
 
-interface ResumeBuilderProps {
-  userId?: string;
-}
-
-const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
+const ResumeBuilder: React.FC = () => {
   const [data, setData] = useState<ResumeData>(INITIAL_DATA);
   const [auditIssues, setAuditIssues] = useState<string[]>([]);
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('contact');
   const [activeTemplate, setActiveTemplate] = useState<TemplateType>('classic');
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // Sync data with Supabase or LocalStorage on mount and when userId changes
+  const steps = ['contact', 'summary', 'experience', 'education', 'extras'];
+  const activeStepIndex = Math.max(0, steps.indexOf(activeSection));
+
   useEffect(() => {
-    const loadResumeData = async () => {
-      if (userId) {
-        try {
-          const { data: dbData, error } = await supabase
-            .from('resumes')
-            .select('resume_data')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-          if (error) {
-            console.error("Error fetching resume from Supabase:", error.message);
-          } else if (dbData && dbData.resume_data) {
-            setData(dbData.resume_data as ResumeData);
-            return;
-          }
-        } catch (err) {
-          console.error("Failed to load from Supabase:", err);
-        }
-      }
-
-      // Fallback to LocalStorage if offline/guest or if no database record exists
-      try {
-        const saved = localStorage.getItem('nextstep_resume_data');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setData({
-            ...INITIAL_DATA,
-            ...parsed,
-            education: Array.isArray(parsed.education) ? parsed.education : [],
-            experience: Array.isArray(parsed.experience) ? parsed.experience : [],
-            fullName: parsed.fullName || '',
-            summary: parsed.summary || ''
-          });
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to parse local resume data:", e);
-      }
-      setData(INITIAL_DATA);
-    };
-
-    loadResumeData();
-  }, [userId]);
+    loadResumeDraft<ResumeData>().then((draft) => {
+      if (draft) setData({ ...INITIAL_DATA, ...draft });
+    });
+  }, []);
 
   // Auto-save to LocalStorage, and sync to Supabase (debounced)
   useEffect(() => {
     localStorage.setItem('nextstep_resume_data', JSON.stringify(data));
-
-    if (!userId) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        await supabase
-          .from('resumes')
-          .upsert({
-            user_id: userId,
-            resume_data: data,
-            updated_at: new Date().toISOString()
-          });
-      } catch (err) {
-        console.error("Error saving resume to Supabase:", err);
-      }
-    }, 1500); // 1.5 seconds debounce for saving to the database
-
-    return () => clearTimeout(timer);
-  }, [data, userId]);
+    setSaveState('saving');
+    const timeout = window.setTimeout(async () => {
+      await saveResumeDraft(data);
+      setSaveState('saved');
+    }, 700);
+    return () => window.clearTimeout(timeout);
+  }, [data]);
 
   // Handle Mobile Scaling for A4 Preview
   useEffect(() => {
@@ -178,12 +127,7 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
     if (!text) return;
     setLoadingId(id);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Rewrite this resume bullet point professionally. Use the 'Action + Context + Result' framework. Keep it under 25 words. Text: "${text}"`,
-      });
-      const enhancedText = response.text?.trim();
+      const enhancedText = await enhanceResumeBullet(text);
       if (enhancedText) {
         setData(prev => ({
           ...prev,
@@ -197,8 +141,27 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
     }
   };
 
+  const generateSummary = async () => {
+    setIsSummaryLoading(true);
+    try {
+      const summary = await generateResumeSummary({
+        targetRole: data.targetRole,
+        resumeData: data,
+      });
+      setData(prev => ({ ...prev, summary }));
+    } catch (e) {
+      alert("AI summary generation failed. Please sign in and check your Supabase configuration.");
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  };
+
   const clearData = () => { if(confirm("Are you sure you want to clear all data?")) setData(EMPTY_DATA); };
   const loadExample = () => setData(INITIAL_DATA);
+  const goStep = (direction: 1 | -1) => {
+    const nextIndex = Math.min(Math.max(activeStepIndex + direction, 0), steps.length - 1);
+    setActiveSection(steps[nextIndex]);
+  };
 
   // Template Renderers
   const ClassicTemplate = () => (
@@ -264,6 +227,18 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
         <div className="text-center mb-10 print:hidden">
           <h2 className="text-4xl font-bold text-navy-900 font-heading">Smart Resume Builder</h2>
           <p className="text-slate-500 mt-2">Fill the form and watch your resume come to life.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {steps.map((step, index) => (
+              <button
+                key={step}
+                onClick={() => setActiveSection(step)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize ${activeSection === step ? 'bg-navy-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+              >
+                {index + 1}. {step}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-3">{saveState === 'saving' ? 'Auto-saving...' : saveState === 'saved' ? 'Saved locally and to your account when signed in.' : 'Auto save ready.'}</p>
         </div>
 
         <div className="flex flex-col xl:flex-row gap-8">
@@ -272,6 +247,11 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
              <div className="flex gap-3">
                <button onClick={loadExample} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">Load Example</button>
                <button onClick={clearData} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold text-red-500 rounded-xl hover:bg-red-50 transition-colors">Reset Form</button>
+             </div>
+             <div className="bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-600">
+               <p className="font-bold text-navy-900 mb-2">Guided Examples</p>
+               <p>Use measurable bullets: "Improved dashboard load time by 38% by refactoring React data fetching."</p>
+               <p className="mt-2">Keep summary focused on target role, strongest skills, and outcomes.</p>
              </div>
 
              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -286,14 +266,23 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
                         <input placeholder="Phone" value={data.phone} onChange={e => setData(d => ({...d, phone: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                       </div>
                       <input placeholder="Location" value={data.location} onChange={e => setData(d => ({...d, location: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
+                      <input placeholder="LinkedIn URL" value={data.linkedin} onChange={e => setData(d => ({...d, linkedin: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
+                      <input placeholder="Portfolio / Website" value={data.website} onChange={e => setData(d => ({...d, website: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                     </div>
                   </div>
                 )}
 
                 <button onClick={() => setActiveSection(activeSection === 'summary' ? '' : 'summary')} className="w-full px-6 py-4 text-left font-bold text-navy-900 border-b flex justify-between">2. Summary <i className={`fas fa-chevron-${activeSection === 'summary' ? 'up' : 'down'} opacity-40`}></i></button>
                 {activeSection === 'summary' && (
-                  <div className="p-6">
+                  <div className="p-6 space-y-3">
                     <textarea value={data.summary} onChange={e => setData(d => ({...d, summary: e.target.value}))} className="w-full h-32 p-3 text-sm border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Professional overview..." />
+                    <button
+                      onClick={generateSummary}
+                      disabled={isSummaryLoading}
+                      className="text-[10px] font-bold text-brand-600 hover:text-brand-700 uppercase tracking-widest disabled:opacity-50"
+                    >
+                      <i className="fas fa-magic mr-1"></i> {isSummaryLoading ? 'Generating...' : 'Generate Summary with AI'}
+                    </button>
                   </div>
                 )}
 
@@ -308,6 +297,9 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
                         }} />
                         <input placeholder="Company" className="w-full mb-2 p-3 border rounded-lg text-sm" value={exp.company} onChange={e => {
                           const exps = [...data.experience]; exps[i].company = e.target.value; setData(d => ({...d, experience: exps}));
+                        }} />
+                        <input placeholder="Dates (e.g. Jan 2022 - Present)" className="w-full mb-2 p-3 border rounded-lg text-sm" value={exp.date} onChange={e => {
+                          const exps = [...data.experience]; exps[i].date = e.target.value; setData(d => ({...d, experience: exps}));
                         }} />
                         <textarea placeholder="Bullet Points..." className="w-full p-3 border rounded-lg text-sm h-24" value={exp.description} onChange={e => {
                           const exps = [...data.experience]; exps[i].description = e.target.value; setData(d => ({...d, experience: exps}));
@@ -330,6 +322,14 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
                         <input placeholder="University" className="w-full p-3 border rounded-lg text-sm" value={edu.school} onChange={e => {
                           const edus = [...data.education]; edus[i].school = e.target.value; setData(d => ({...d, education: edus}));
                         }} />
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <input placeholder="Year" className="w-full p-3 border rounded-lg text-sm" value={edu.year} onChange={e => {
+                            const edus = [...data.education]; edus[i].year = e.target.value; setData(d => ({...d, education: edus}));
+                          }} />
+                          <input placeholder="Grade / GPA" className="w-full p-3 border rounded-lg text-sm" value={edu.grade} onChange={e => {
+                            const edus = [...data.education]; edus[i].grade = e.target.value; setData(d => ({...d, education: edus}));
+                          }} />
+                        </div>
                       </div>
                     ))}
                     <button onClick={() => setData(d => ({...d, education: [...(d.education || []), { id: Date.now(), degree: '', school: '', year: '', grade: '' }]}))} className="w-full py-2 border-2 border-dashed border-slate-300 text-slate-400 font-bold text-xs rounded-xl hover:border-brand-500 hover:text-brand-500 transition-all">+ Add Degree</button>
@@ -340,10 +340,15 @@ const ResumeBuilder: React.FC<ResumeBuilderProps> = ({ userId }) => {
                 {activeSection === 'extras' && (
                   <div className="p-6 space-y-4 animate-fade-in">
                     <textarea placeholder="Skills (Comma separated)" value={data.hardSkills} onChange={e => setData(d => ({...d, hardSkills: e.target.value}))} className="w-full p-3 border rounded-lg text-sm h-20" />
+                    <textarea placeholder="Soft Skills" value={data.softSkills} onChange={e => setData(d => ({...d, softSkills: e.target.value}))} className="w-full p-3 border rounded-lg text-sm h-20" />
                     <input placeholder="Languages (e.g. English, French)" value={data.languages} onChange={e => setData(d => ({...d, languages: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                     <input placeholder="Certifications" value={data.certifications} onChange={e => setData(d => ({...d, certifications: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                   </div>
                 )}
+             </div>
+             <div className="flex gap-3">
+               <button onClick={() => goStep(-1)} disabled={activeStepIndex === 0} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold rounded-xl disabled:opacity-40">Previous</button>
+               <button onClick={() => goStep(1)} disabled={activeStepIndex === steps.length - 1} className="flex-1 py-3 bg-brand-500 text-white text-sm font-bold rounded-xl disabled:opacity-40">Next Step</button>
              </div>
           </div>
 

@@ -119,6 +119,14 @@ const Hero: React.FC = () => {
             </div>
           </div>
         </div>
+
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto">
+          {['Gemini via secure Edge Functions', 'Private resume analysis', 'Razorpay test checkout'].map((item) => (
+            <div key={item} className="bg-white/90 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm">
+              <i className="fas fa-shield-alt text-brand-500 mr-2"></i>{item}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
