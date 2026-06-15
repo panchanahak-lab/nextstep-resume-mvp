@@ -59,7 +59,7 @@ const atsResponseSchema = {
           location: { type: "STRING" },
           description: { type: "STRING" },
           highlight: { type: "STRING", description: "The specific text snippet with the issue" },
-          suggestion: { type: "STRING" },
+          suggestion: { type: "STRING", description: "Direct resume edit. Prefer 'Replace ... with ...' or 'Add ...'. Do not give vague advice." },
           severity: { type: "STRING", description: "One of: critical, warning, info" },
         },
         required: ["title", "location", "description", "highlight", "suggestion", "severity"],
@@ -132,8 +132,8 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
 
   const hasJD = jobDescription.trim().length > 0;
   const promptText = hasJD
-    ? "Analyze this resume against the provided Job Description. Calculate a Match Score based on semantic similarity and keyword presence. Also perform detailed scoring by section, optimization actions, an improved summary, and a readiness summary."
-    : "Please analyze this resume for ATS compatibility. Provide overall scores, section breakdowns, optimization actions, an improved summary, and a readiness summary.";
+    ? "Analyze this resume against the provided Job Description. Calculate a Match Score based on semantic similarity and keyword presence. Also perform detailed scoring by section, optimization actions, an improved summary, and a readiness summary. For every issue, provide a direct resume edit, not a generic suggestion."
+    : "Please analyze this resume for ATS compatibility. Provide overall scores, section breakdowns, optimization actions, an improved summary, and a readiness summary. For every issue, provide a direct resume edit, not a generic suggestion.";
 
   const parts: unknown[] = [
     {
@@ -158,7 +158,15 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
       parts: [{
         text: `You are an expert ATS optimization specialist.
           Parse the resume. If a Job Description is present, perform a deep semantic match (like Cosine Similarity) to determine the 'matchScore' and identify 'missingKeywords' strictly relevant to the JD.
-          Analyze individual sections (Summary, Experience, Education, Skills) and provide specific quality scores (0-100) for each based on content impact, quantification of achievements, clarity, and ATS parsing friendliness.`,
+          Analyze individual sections (Summary, Experience, Education, Skills) and provide specific quality scores (0-100) for each based on content impact, quantification of achievements, clarity, and ATS parsing friendliness.
+
+          For each issue, the 'highlight' field must quote the exact incorrect or weak resume text.
+          The 'suggestion' field must be a direct change the user can apply immediately:
+          - Prefer this format: Replace "[exact current text]" with "[corrected text]".
+          - For missing content, use: Add "[ready-to-paste text]".
+          - For dates, grammar, formatting, title, summary, and bullets, provide the corrected wording directly.
+          - If the exact factual correction cannot be known from the resume, say exactly what value is needed, for example: Replace "02-06-2025 - Present" with "[actual start date] - Present".
+          - Do not write vague instructions like "Correct the date" or "Ensure this is accurate".`,
       }],
     },
   };

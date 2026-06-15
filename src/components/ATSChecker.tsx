@@ -129,9 +129,9 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
       return (
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 relative overflow-hidden mt-3 group">
           <div className="filter blur-sm select-none opacity-40 transition-opacity duration-300">
-             <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Suggestion:</p>
+             <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Direct change:</p>
              <p className="text-slate-800 text-sm">
-               Login to view the detailed fix for this issue. We provide tailored suggestions to improve your ATS score.
+               Login to view the exact replacement or edit needed to improve this resume issue.
              </p>
           </div>
           <div className="absolute inset-0 flex items-center justify-center bg-slate-50/10">
@@ -147,7 +147,7 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
     }
     return (
       <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mt-3 animate-fade-in">
-         <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Suggestion:</p>
+         <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Direct change:</p>
          <p className={`text-slate-800 text-sm ${italic ? 'italic' : ''}`}>{content}</p>
       </div>
     );
