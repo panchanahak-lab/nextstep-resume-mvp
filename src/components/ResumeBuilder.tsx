@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { enhanceResumeBullet, generateResumeSummary } from '../lib/aiClient';
+import { loadResumeDraft, saveResumeDraft } from '../lib/dataClient';
 
 // --- TYPES ---
 
@@ -97,10 +98,26 @@ const ResumeBuilder: React.FC = () => {
   const [activeTemplate, setActiveTemplate] = useState<TemplateType>('classic');
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  const steps = ['contact', 'summary', 'experience', 'education', 'extras'];
+  const activeStepIndex = Math.max(0, steps.indexOf(activeSection));
+
+  useEffect(() => {
+    loadResumeDraft<ResumeData>().then((draft) => {
+      if (draft) setData({ ...INITIAL_DATA, ...draft });
+    });
+  }, []);
 
   // Auto-save to LocalStorage
   useEffect(() => {
     localStorage.setItem('nextstep_resume_data', JSON.stringify(data));
+    setSaveState('saving');
+    const timeout = window.setTimeout(async () => {
+      await saveResumeDraft(data);
+      setSaveState('saved');
+    }, 700);
+    return () => window.clearTimeout(timeout);
   }, [data]);
 
   // Handle Mobile Scaling for A4 Preview
@@ -164,6 +181,10 @@ const ResumeBuilder: React.FC = () => {
 
   const clearData = () => { if(confirm("Are you sure you want to clear all data?")) setData(EMPTY_DATA); };
   const loadExample = () => setData(INITIAL_DATA);
+  const goStep = (direction: 1 | -1) => {
+    const nextIndex = Math.min(Math.max(activeStepIndex + direction, 0), steps.length - 1);
+    setActiveSection(steps[nextIndex]);
+  };
 
   // Template Renderers
   const ClassicTemplate = () => (
@@ -229,6 +250,18 @@ const ResumeBuilder: React.FC = () => {
         <div className="text-center mb-10 print:hidden">
           <h2 className="text-4xl font-bold text-navy-900 font-heading">Smart Resume Builder</h2>
           <p className="text-slate-500 mt-2">Fill the form and watch your resume come to life.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {steps.map((step, index) => (
+              <button
+                key={step}
+                onClick={() => setActiveSection(step)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize ${activeSection === step ? 'bg-navy-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+              >
+                {index + 1}. {step}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-3">{saveState === 'saving' ? 'Auto-saving...' : saveState === 'saved' ? 'Saved locally and to your account when signed in.' : 'Auto save ready.'}</p>
         </div>
 
         <div className="flex flex-col xl:flex-row gap-8">
@@ -237,6 +270,11 @@ const ResumeBuilder: React.FC = () => {
              <div className="flex gap-3">
                <button onClick={loadExample} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">Load Example</button>
                <button onClick={clearData} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold text-red-500 rounded-xl hover:bg-red-50 transition-colors">Reset Form</button>
+             </div>
+             <div className="bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-600">
+               <p className="font-bold text-navy-900 mb-2">Guided Examples</p>
+               <p>Use measurable bullets: "Improved dashboard load time by 38% by refactoring React data fetching."</p>
+               <p className="mt-2">Keep summary focused on target role, strongest skills, and outcomes.</p>
              </div>
 
              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -251,6 +289,8 @@ const ResumeBuilder: React.FC = () => {
                         <input placeholder="Phone" value={data.phone} onChange={e => setData(d => ({...d, phone: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                       </div>
                       <input placeholder="Location" value={data.location} onChange={e => setData(d => ({...d, location: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
+                      <input placeholder="LinkedIn URL" value={data.linkedin} onChange={e => setData(d => ({...d, linkedin: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
+                      <input placeholder="Portfolio / Website" value={data.website} onChange={e => setData(d => ({...d, website: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                     </div>
                   </div>
                 )}
@@ -281,6 +321,9 @@ const ResumeBuilder: React.FC = () => {
                         <input placeholder="Company" className="w-full mb-2 p-3 border rounded-lg text-sm" value={exp.company} onChange={e => {
                           const exps = [...data.experience]; exps[i].company = e.target.value; setData(d => ({...d, experience: exps}));
                         }} />
+                        <input placeholder="Dates (e.g. Jan 2022 - Present)" className="w-full mb-2 p-3 border rounded-lg text-sm" value={exp.date} onChange={e => {
+                          const exps = [...data.experience]; exps[i].date = e.target.value; setData(d => ({...d, experience: exps}));
+                        }} />
                         <textarea placeholder="Bullet Points..." className="w-full p-3 border rounded-lg text-sm h-24" value={exp.description} onChange={e => {
                           const exps = [...data.experience]; exps[i].description = e.target.value; setData(d => ({...d, experience: exps}));
                         }} />
@@ -302,6 +345,14 @@ const ResumeBuilder: React.FC = () => {
                         <input placeholder="University" className="w-full p-3 border rounded-lg text-sm" value={edu.school} onChange={e => {
                           const edus = [...data.education]; edus[i].school = e.target.value; setData(d => ({...d, education: edus}));
                         }} />
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <input placeholder="Year" className="w-full p-3 border rounded-lg text-sm" value={edu.year} onChange={e => {
+                            const edus = [...data.education]; edus[i].year = e.target.value; setData(d => ({...d, education: edus}));
+                          }} />
+                          <input placeholder="Grade / GPA" className="w-full p-3 border rounded-lg text-sm" value={edu.grade} onChange={e => {
+                            const edus = [...data.education]; edus[i].grade = e.target.value; setData(d => ({...d, education: edus}));
+                          }} />
+                        </div>
                       </div>
                     ))}
                     <button onClick={() => setData(d => ({...d, education: [...(d.education || []), { id: Date.now(), degree: '', school: '', year: '', grade: '' }]}))} className="w-full py-2 border-2 border-dashed border-slate-300 text-slate-400 font-bold text-xs rounded-xl hover:border-brand-500 hover:text-brand-500 transition-all">+ Add Degree</button>
@@ -312,10 +363,15 @@ const ResumeBuilder: React.FC = () => {
                 {activeSection === 'extras' && (
                   <div className="p-6 space-y-4 animate-fade-in">
                     <textarea placeholder="Skills (Comma separated)" value={data.hardSkills} onChange={e => setData(d => ({...d, hardSkills: e.target.value}))} className="w-full p-3 border rounded-lg text-sm h-20" />
+                    <textarea placeholder="Soft Skills" value={data.softSkills} onChange={e => setData(d => ({...d, softSkills: e.target.value}))} className="w-full p-3 border rounded-lg text-sm h-20" />
                     <input placeholder="Languages (e.g. English, French)" value={data.languages} onChange={e => setData(d => ({...d, languages: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                     <input placeholder="Certifications" value={data.certifications} onChange={e => setData(d => ({...d, certifications: e.target.value}))} className="w-full p-3 border rounded-lg text-sm" />
                   </div>
                 )}
+             </div>
+             <div className="flex gap-3">
+               <button onClick={() => goStep(-1)} disabled={activeStepIndex === 0} className="flex-1 py-3 bg-white border border-slate-200 text-sm font-bold rounded-xl disabled:opacity-40">Previous</button>
+               <button onClick={() => goStep(1)} disabled={activeStepIndex === steps.length - 1} className="flex-1 py-3 bg-brand-500 text-white text-sm font-bold rounded-xl disabled:opacity-40">Next Step</button>
              </div>
           </div>
 

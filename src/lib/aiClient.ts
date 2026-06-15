@@ -13,6 +13,9 @@ export interface AnalysisResult {
   keywordScore: number;
   detectedKeywords: string[];
   missingKeywords: string[];
+  optimizationPlan?: string[];
+  improvedSummary?: string;
+  readinessSummary?: string;
   issues: {
     title: string;
     location: string;
@@ -34,6 +37,12 @@ export interface InterviewFeedback {
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
+  lineFeedback?: {
+    quote: string;
+    feedback: string;
+    improvedAnswer: string;
+  }[];
+  suggestedAnswers?: string[];
 }
 
 async function invokeFunction<T>(functionName: string, body: unknown): Promise<T> {
@@ -102,4 +111,37 @@ export async function createLiveInterviewSocket(params: {
   });
 
   return new WebSocket(`${wsUrl}?${search.toString()}`);
+}
+
+export async function createRazorpayOrder(packageId: string): Promise<{
+  paymentId: string;
+  keyId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+}> {
+  return invokeFunction('razorpay-create-order', { packageId });
+}
+
+export async function verifyRazorpayPayment(payload: {
+  paymentId: string;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}): Promise<{ ok: boolean; packageId: string }> {
+  return invokeFunction('razorpay-verify-payment', payload);
+}
+
+export async function fetchAdminDashboard(): Promise<any> {
+  return invokeFunction('admin-dashboard', {});
+}
+
+export async function runAdminAction(payload: {
+  action: string;
+  targetUserId: string;
+  packageId?: string;
+}): Promise<{ ok: boolean }> {
+  return invokeFunction('admin-dashboard', payload);
 }

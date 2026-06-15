@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { JobApplication, JobStatus } from '../types';
+import { deleteStoredJob, loadJobs, upsertJob } from '../lib/dataClient';
 
 const JobTracker: React.FC = () => {
   const [jobs, setJobs] = useState<JobApplication[]>([]);
@@ -9,29 +10,35 @@ const JobTracker: React.FC = () => {
 
   // Load from LocalStorage
   useEffect(() => {
-    const savedJobs = localStorage.getItem('nextstep_jobs');
-    if (savedJobs) {
-      setJobs(JSON.parse(savedJobs));
-    } else {
-        // Initial Dummy Data
-        setJobs([
-            { id: '1', company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
-            { id: '2', company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
-        ]);
-    }
+    loadJobs().then((storedJobs) => {
+      if (storedJobs?.length) {
+        setJobs(storedJobs);
+        return;
+      }
+      const savedJobs = localStorage.getItem('nextstep_jobs');
+      if (savedJobs) {
+        setJobs(JSON.parse(savedJobs));
+      } else {
+          setJobs([
+              { id: crypto.randomUUID(), company: 'Google', role: 'Frontend Engineer', status: 'Saved', dateAdded: new Date().toISOString() },
+              { id: crypto.randomUUID(), company: 'Amazon', role: 'SDE II', status: 'Applied', dateAdded: new Date().toISOString() },
+          ]);
+      }
+    });
   }, []);
 
   // Save to LocalStorage
   useEffect(() => {
     if (jobs.length > 0) {
         localStorage.setItem('nextstep_jobs', JSON.stringify(jobs));
+        jobs.forEach(job => upsertJob(job));
     }
   }, [jobs]);
 
   const addJob = () => {
     if (!newJob.company || !newJob.role) return;
     const job: JobApplication = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       company: newJob.company,
       role: newJob.role,
       status: newJob.status,
@@ -56,6 +63,7 @@ const JobTracker: React.FC = () => {
 
   const deleteJob = (id: string) => {
     setJobs(jobs.filter(j => j.id !== id));
+    deleteStoredJob(id);
   };
 
   const Columns: JobStatus[] = ['Saved', 'Applied', 'Interviewing', 'Offer'];

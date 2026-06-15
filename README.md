@@ -43,6 +43,9 @@ Gemini API credentials must never be exposed to the browser. AI features call au
    supabase functions deploy resume-summary
    supabase functions deploy interview-feedback
    supabase functions deploy live-interview-relay
+   supabase functions deploy razorpay-create-order
+   supabase functions deploy razorpay-verify-payment
+   supabase functions deploy admin-dashboard
    ```
 
 5. Run the app:

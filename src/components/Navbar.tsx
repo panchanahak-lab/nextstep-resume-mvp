@@ -33,6 +33,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
               </span>
               Interview Prep
             </a>
+            <a href="#pricing" className="text-slate-600 hover:text-navy-900 font-medium transition-colors">Packs</a>
+            <a href="#admin" className="text-slate-600 hover:text-navy-900 font-medium transition-colors">Admin</a>
             <div className="flex items-center space-x-4 ml-4">
               <button 
                 onClick={() => onOpenAuth('signin')}
@@ -69,6 +71,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
             <a href="#builder" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Builder</a>
             <a href="#tracker" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Tracker</a>
             <a href="#interview" className="block px-3 py-3 rounded-md text-base font-medium text-brand-600 bg-brand-50 hover:bg-brand-100" onClick={() => setIsOpen(false)}>Interview Prep</a>
+            <a href="#pricing" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Packs</a>
+            <a href="#admin" className="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-navy-900 hover:bg-slate-50" onClick={() => setIsOpen(false)}>Admin</a>
             <div className="pt-4 flex flex-col gap-3">
               <button 
                 onClick={() => { setIsOpen(false); onOpenAuth('signin'); }}

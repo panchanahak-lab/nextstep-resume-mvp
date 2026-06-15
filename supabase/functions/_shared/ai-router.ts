@@ -37,6 +37,19 @@ const atsResponseSchema = {
       items: { type: "STRING" },
       description: "List of missing high-value keywords (if JD provided, prioritize missing JD keywords)",
     },
+    optimizationPlan: {
+      type: "ARRAY",
+      items: { type: "STRING" },
+      description: "Prioritized resume optimization actions.",
+    },
+    improvedSummary: {
+      type: "STRING",
+      description: "A concise, personalized ATS-friendly professional summary.",
+    },
+    readinessSummary: {
+      type: "STRING",
+      description: "Plain-English explanation of job-readiness and next steps.",
+    },
     issues: {
       type: "ARRAY",
       items: {
@@ -53,7 +66,7 @@ const atsResponseSchema = {
       },
     },
   },
-  required: ["overallScore", "sectionScores", "formattingScore", "keywordScore", "detectedKeywords", "missingKeywords", "issues"],
+  required: ["overallScore", "sectionScores", "formattingScore", "keywordScore", "detectedKeywords", "missingKeywords", "issues", "optimizationPlan", "improvedSummary", "readinessSummary"],
 };
 
 const interviewFeedbackSchema = {
@@ -64,8 +77,24 @@ const interviewFeedbackSchema = {
     strengths: { type: "ARRAY", items: { type: "STRING" } },
     weaknesses: { type: "ARRAY", items: { type: "STRING" } },
     suggestions: { type: "ARRAY", items: { type: "STRING" } },
+    lineFeedback: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          quote: { type: "STRING" },
+          feedback: { type: "STRING" },
+          improvedAnswer: { type: "STRING" },
+        },
+        required: ["quote", "feedback", "improvedAnswer"],
+      },
+    },
+    suggestedAnswers: {
+      type: "ARRAY",
+      items: { type: "STRING" },
+    },
   },
-  required: ["score", "summary", "strengths", "weaknesses", "suggestions"],
+  required: ["score", "summary", "strengths", "weaknesses", "suggestions", "lineFeedback", "suggestedAnswers"],
 };
 
 export async function runAiAction(params: {
@@ -103,8 +132,8 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
 
   const hasJD = jobDescription.trim().length > 0;
   const promptText = hasJD
-    ? "Analyze this resume against the provided Job Description. Calculate a Match Score based on semantic similarity and keyword presence. Also perform detailed scoring by section."
-    : "Please analyze this resume for ATS compatibility. Provide overall scores and detailed breakdowns for Experience, Education, Summary, and Skills sections.";
+    ? "Analyze this resume against the provided Job Description. Calculate a Match Score based on semantic similarity and keyword presence. Also perform detailed scoring by section, optimization actions, an improved summary, and a readiness summary."
+    : "Please analyze this resume for ATS compatibility. Provide overall scores, section breakdowns, optimization actions, an improved summary, and a readiness summary.";
 
   const parts: unknown[] = [
     {
@@ -135,6 +164,7 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
   };
 
   const text = await generateGeminiContent(request);
+  const result = JSON.parse(text);
   await recordUsage({
     userId,
     feature: "ats-analysis",
@@ -144,7 +174,7 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
     metadata: { hasJobDescription: hasJD, fileName: file.name ?? null },
   });
 
-  return JSON.parse(text);
+  return result;
 }
 
 async function runResumeEnhancement(userId: string, payload: Record<string, unknown>) {
@@ -212,7 +242,7 @@ async function runInterviewFeedback(userId: string, payload: Record<string, unkn
     contents: [{
       role: "user",
       parts: [{
-        text: `Analyze the following interview for a ${jobRole} position. Provide a score out of 100, a summary, strengths, weaknesses, and specific suggestions for improvement. Return purely JSON.\n\nINTERVIEW LOG:\n${history}`,
+        text: `Analyze the following interview for a ${jobRole} position. Provide a score out of 100, a summary, strengths, weaknesses, specific suggestions, line-by-line feedback for notable answers, and suggested stronger answers. Return purely JSON.\n\nINTERVIEW LOG:\n${history}`,
       }],
     }],
     responseMimeType: "application/json",

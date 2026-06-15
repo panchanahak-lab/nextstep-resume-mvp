@@ -13,6 +13,9 @@ import LiveInterview from './components/LiveInterview';
 import ResumeBuilder from './components/ResumeBuilder';
 import JobTracker from './components/JobTracker';
 import { supabase } from './lib/supabaseClient';
+import Pricing from './components/Pricing';
+import AdminPanel from './components/AdminPanel';
+import LegalPages from './components/LegalPages';
 
 
 function App() {
@@ -58,10 +61,13 @@ function App() {
         <ResumeBuilder />
         <JobTracker />
         <LiveInterview />
+        <Pricing isLoggedIn={isLoggedIn} onOpenAuth={openAuth} />
+        <AdminPanel />
         <WhyChooseUs />
         <Services />
         <Testimonials />
         <BottomCTA />
+        <LegalPages />
       </main>
       <Footer />
       <AuthModal 

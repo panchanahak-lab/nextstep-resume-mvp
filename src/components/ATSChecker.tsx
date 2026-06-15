@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { analyzeResume, type AnalysisResult } from '../lib/aiClient';
+import { saveAtsReport } from '../lib/dataClient';
 
 interface ATSCheckerProps {
   isLoggedIn: boolean;
@@ -94,6 +95,13 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
         jobDescription,
       });
       setAnalysisResult(resultJson);
+      await saveAtsReport({
+        resumeName: file.name,
+        jobDescriptionPresent: jobDescription.trim().length > 0,
+        overallScore: resultJson.overallScore,
+        readinessScore: resultJson.matchScore || resultJson.overallScore,
+        result: resultJson,
+      });
       setStatus('complete');
 
     } catch (error) {
@@ -400,6 +408,13 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
                         </div>
                       </div>
                     </div>
+
+                    {analysisResult.readinessSummary && (
+                      <div className="text-left bg-brand-50 border border-brand-100 rounded-lg p-4 mb-6">
+                        <p className="text-xs font-bold text-brand-700 uppercase mb-1">Resume Readiness</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{analysisResult.readinessSummary}</p>
+                      </div>
+                    )}
                     
                     <a href="#pricing" className="block w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg transition-all text-sm mb-3">
                       Fix All Errors Now
@@ -476,6 +491,28 @@ const ATSChecker: React.FC<ATSCheckerProps> = ({ isLoggedIn, onOpenAuth }) => {
                         </div>
                        );
                      })}
+
+                     {(analysisResult.optimizationPlan?.length || analysisResult.improvedSummary) && (
+                       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                         <h4 className="font-bold text-navy-900 text-sm uppercase tracking-wide mb-3 flex items-center">
+                           <i className="fas fa-wand-magic-sparkles text-brand-500 mr-2"></i> ATS Optimization
+                         </h4>
+                         {analysisResult.improvedSummary && (
+                           <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 mb-4">
+                             <p className="text-xs text-brand-700 font-bold uppercase mb-1">Personalized AI Summary</p>
+                             <p className="text-sm text-slate-700 leading-relaxed">{analysisResult.improvedSummary}</p>
+                           </div>
+                         )}
+                         <div className="space-y-2">
+                           {analysisResult.optimizationPlan?.map((item, i) => (
+                             <div key={i} className="flex gap-3 text-sm text-slate-700">
+                               <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                               <span>{item}</span>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
                    </div>
                 </div>
               </div>

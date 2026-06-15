@@ -21,3 +21,9 @@ export async function getAccessToken(): Promise<string> {
 
   return data.session.access_token;
 }
+
+export async function getCurrentUserId(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}

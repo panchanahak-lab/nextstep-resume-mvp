@@ -260,6 +260,10 @@ const LiveInterview: React.FC = () => {
         <div className={`bg-slate-800/40 rounded-3xl border border-slate-700/50 backdrop-blur-md p-6 md:p-10 shadow-2xl ${stage === 'feedback' ? 'printable-content' : ''}`}>
           {stage === 'setup' && (
             <div className="max-w-md mx-auto space-y-6 animate-fade-in">
+              <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-5 text-sm text-slate-200">
+                <p className="font-bold text-brand-300 mb-1">Warm-up</p>
+                <p>Take one calm breath, then answer in this structure: situation, action, result. The AI interviewer will start with one question and adapt to your response.</p>
+              </div>
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-2 tracking-widest">Target Job Role</label>
@@ -401,6 +405,26 @@ const LiveInterview: React.FC = () => {
                  </div>
                </div>
 
+               {feedback.lineFeedback && feedback.lineFeedback.length > 0 && (
+                 <div className="bg-slate-800/40 p-6 rounded-3xl border border-slate-700/50 print:bg-white print:border-slate-200">
+                   <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
+                     <i className="fas fa-list-check"></i> Line-by-line Feedback
+                   </h4>
+                   <div className="space-y-4">
+                     {feedback.lineFeedback.map((item, i) => (
+                       <div key={i} className="bg-navy-900/50 p-4 rounded-xl border border-slate-700/50 print:bg-slate-50 print:text-black print:border-slate-200">
+                         <p className="text-xs text-slate-500 font-bold uppercase mb-1">Your line</p>
+                         <p className="text-sm text-slate-300 italic print:text-black">"{item.quote}"</p>
+                         <p className="text-xs text-slate-500 font-bold uppercase mt-3 mb-1">Feedback</p>
+                         <p className="text-sm text-slate-300 print:text-black">{item.feedback}</p>
+                         <p className="text-xs text-slate-500 font-bold uppercase mt-3 mb-1">Suggested answer</p>
+                         <p className="text-sm text-slate-300 print:text-black">{item.improvedAnswer}</p>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
                <div className="bg-brand-500/5 p-8 rounded-3xl border border-brand-500/20 print:bg-white print:border-brand-200">
                  <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
                     <i className="fas fa-lightbulb"></i> Recommendations
@@ -413,6 +437,22 @@ const LiveInterview: React.FC = () => {
                     ))}
                  </div>
                </div>
+
+               {feedback.suggestedAnswers && feedback.suggestedAnswers.length > 0 && (
+                 <div className="bg-white/5 p-8 rounded-3xl border border-white/10 print:bg-white print:border-slate-200">
+                   <h4 className="text-brand-400 font-bold text-sm mb-4 flex items-center gap-2 print:text-brand-700">
+                     <i className="fas fa-comment-dots"></i> Suggested Answers
+                   </h4>
+                   <ul className="space-y-3 text-sm text-slate-300 print:text-black">
+                     {feedback.suggestedAnswers.map((answer, i) => (
+                       <li key={i} className="flex gap-3">
+                         <span className="text-brand-400 font-bold">{i + 1}.</span>
+                         <span>{answer}</span>
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
 
                <div className="flex flex-col sm:flex-row gap-4 print:hidden">
                  <button onClick={() => { setStage('setup'); setTranscripts([]); }} className="flex-1 py-4 bg-brand-500 hover:bg-brand-600 rounded-xl font-bold transition-all">Start New Session</button>
