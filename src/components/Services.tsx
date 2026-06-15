@@ -13,11 +13,6 @@ const services: ServiceItem[] = [
     icon: 'fas fa-envelope-open-text',
     description: 'Compelling narratives that explain your career transitions and highlight your passion for the prospective role.',
   },
-  {
-    title: 'LinkedIn Optimization',
-    icon: 'fab fa-linkedin',
-    description: 'Transform your profile into a magnet for recruiters with optimized headlines, summaries, and skill sections.',
-  },
 ];
 
 const Services: React.FC = () => {
@@ -30,7 +25,7 @@ const Services: React.FC = () => {
           <p className="text-slate-600 max-w-2xl mx-auto">We provide a full suite of career marketing documents designed to work together cohesively.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {services.map((service, index) => (
             <div 
               key={index} 
