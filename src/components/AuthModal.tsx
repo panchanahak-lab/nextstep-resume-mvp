@@ -59,7 +59,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) =
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'linkedin_oidc') => {
+  const handleSocialLogin = async (provider: 'google') => {
     if (!supabase || !isSupabaseConfigured) {
       setErrorMessage('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
       return;
@@ -106,22 +106,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode }) =
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="mb-6">
               <button
                 type="button"
                 onClick={() => handleSocialLogin('google')}
-                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
+                className="flex w-full items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
               >
                 <i className="fab fa-google text-red-500 mr-2"></i>
                 Google
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('linkedin_oidc')}
-                className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700"
-              >
-                <i className="fab fa-linkedin text-[#0077b5] text-lg mr-2"></i>
-                LinkedIn
               </button>
             </div>
 
