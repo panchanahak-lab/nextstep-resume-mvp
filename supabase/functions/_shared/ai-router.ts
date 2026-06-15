@@ -7,8 +7,8 @@ export type AiAction =
   | "resume-summary"
   | "interview-feedback";
 
-const ATS_MODEL = "gemini-3-pro-preview";
-const TEXT_MODEL = "gemini-3-pro-preview";
+const ATS_MODEL = "gemini-2.5-flash";
+const TEXT_MODEL = "gemini-2.5-flash";
 
 const atsResponseSchema = {
   type: "OBJECT",
