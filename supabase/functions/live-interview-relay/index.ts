@@ -88,6 +88,7 @@ Deno.serve(async (req) => {
   let outputBytes = 0;
   let sessionId: string | null = null;
   let closed = false;
+  let persisted = false;
 
   const closeBoth = (code = 1000, reason = "Session ended") => {
     if (closed) return;
@@ -161,6 +162,8 @@ Deno.serve(async (req) => {
   gemini.onclose = () => closeBoth();
 
   const persistEnd = async () => {
+    if (persisted) return;
+    persisted = true;
     clearTimeout(timeout);
     const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
 
