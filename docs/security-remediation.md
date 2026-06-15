@@ -7,6 +7,7 @@ This branch removes direct Gemini access from the browser and routes AI features
 ## Implemented Changes
 
 - Removed `@google/genai` from frontend dependencies.
+- Removed stale browser importmap entry for `@google/genai`.
 - Removed `GEMINI_API_KEY` injection from `vite.config.ts`.
 - Added Supabase client integration for auth and Edge Function calls.
 - Replaced mock auth with Supabase email/password auth.
@@ -73,10 +74,10 @@ npm run build
 Search verification:
 
 ```bash
-rg "@google/genai|GoogleGenAI|process\.env\.API_KEY|process\.env\.GEMINI_API_KEY|GEMINI_API_KEY|generateContent|live\.connect" src vite.config.ts package.json
+rg "@google/genai|GoogleGenAI|process\.env\.API_KEY|process\.env\.GEMINI_API_KEY|generateContent|live\.connect" src vite.config.ts index.html package.json
 ```
 
-Result: no direct Gemini SDK imports, no browser `GoogleGenAI` construction, and no Gemini API key injection remain in frontend code.
+Result: no direct Gemini SDK imports, no browser `GoogleGenAI` construction, no Gemini API key injection, and no stale browser Gemini importmap entry remain in frontend code.
 
 Known remaining build warning: `index.html` references `/index.css`, which does not exist at build time. This predates the security remediation.
 

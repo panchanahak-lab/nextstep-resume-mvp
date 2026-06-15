@@ -56,5 +56,5 @@ Gemini API credentials must never be exposed to the browser. AI features call au
 ```bash
 npx tsc --noEmit
 npm run build
-rg "@google/genai|GoogleGenAI|process\.env\.API_KEY|process\.env\.GEMINI_API_KEY" src vite.config.ts package.json
+rg "@google/genai|GoogleGenAI|process\.env\.API_KEY|process\.env\.GEMINI_API_KEY|generateContent|live\.connect" src vite.config.ts index.html package.json
 ```

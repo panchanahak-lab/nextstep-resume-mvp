@@ -1,4 +1,4 @@
-import { handleOptions, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse, handleOptions, jsonResponse, logError } from "../_shared/cors.ts";
 import { runAiAction, type AiAction } from "../_shared/ai-router.ts";
 import { checkRateLimit, requireUser } from "../_shared/supabase.ts";
 
@@ -10,12 +10,13 @@ const FEATURE_LIMITS: Record<AiAction, { limit: number; windowSeconds: number }>
 };
 
 Deno.serve(async (req) => {
+  const requestId = crypto.randomUUID();
   const optionsResponse = handleOptions(req);
   if (optionsResponse) return optionsResponse;
 
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405);
+      return errorResponse("Method not allowed.", 405, requestId);
     }
 
     const user = await requireUser(req);
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
     const limits = FEATURE_LIMITS[action];
 
     if (!limits) {
-      return jsonResponse({ error: "Unsupported AI action." }, 400);
+      return errorResponse("Unsupported AI action.", 400, requestId);
     }
 
     await checkRateLimit(user.id, action, limits.limit, limits.windowSeconds);
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ result });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error(error);
-    return jsonResponse({ error: "AI request failed." }, 500);
+    logError("AI router request failed", error, requestId);
+    return errorResponse("AI request failed.", 500, requestId);
   }
 });

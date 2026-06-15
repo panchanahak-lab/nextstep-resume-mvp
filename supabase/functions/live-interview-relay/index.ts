@@ -1,3 +1,4 @@
+import { logError } from "../_shared/cors.ts";
 import { getServiceClient } from "../_shared/supabase.ts";
 
 const LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
@@ -47,6 +48,7 @@ function buildGeminiSetup(jobRole: string, language: string) {
 }
 
 Deno.serve(async (req) => {
+  const requestId = crypto.randomUUID();
   if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
     return new Response("Expected WebSocket upgrade.", { status: 426 });
   }
@@ -67,7 +69,7 @@ Deno.serve(async (req) => {
   });
 
   if (rateLimitError) {
-    console.error(rateLimitError);
+    logError("Live interview rate limit check failed", rateLimitError, requestId);
     return new Response("Rate limit check failed.", { status: 500 });
   }
 
@@ -122,7 +124,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) {
-      console.error(error);
+      logError("Could not start tracked live session", error, requestId);
       closeBoth(1011, "Could not start tracked live session.");
       return;
     }
@@ -153,7 +155,7 @@ Deno.serve(async (req) => {
   };
 
   gemini.onerror = (event) => {
-    console.error("Gemini live relay error", event);
+    logError("Gemini live relay error", event, requestId);
     closeBoth(1011, "Gemini live relay error.");
   };
 
@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
     const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
 
     if (sessionId) {
-      await supabase
+      const { error } = await supabase
         .from("ai_live_sessions")
         .update({
           status: "ended",
@@ -178,9 +180,13 @@ Deno.serve(async (req) => {
           output_bytes: outputBytes,
         })
         .eq("id", sessionId);
+
+      if (error) {
+        logError("Could not persist live session end", error, requestId);
+      }
     }
 
-    await supabase.rpc("record_ai_usage_event", {
+    const { error } = await supabase.rpc("record_ai_usage_event", {
       p_user_id: userId,
       p_feature: "live-interview",
       p_model: LIVE_MODEL,
@@ -191,6 +197,10 @@ Deno.serve(async (req) => {
       p_estimated_cost_usd: null,
       p_metadata: { sessionId, durationSeconds, jobRole, language },
     });
+
+    if (error) {
+      logError("Could not record live interview usage", error, requestId);
+    }
   };
 
   socket.addEventListener("close", persistEnd, { once: true });
