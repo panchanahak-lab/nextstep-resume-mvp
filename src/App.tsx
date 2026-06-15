@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyChooseUs from './components/WhyChooseUs';
@@ -12,12 +12,29 @@ import ATSChecker from './components/ATSChecker';
 import LiveInterview from './components/LiveInterview';
 import ResumeBuilder from './components/ResumeBuilder';
 import JobTracker from './components/JobTracker';
+import { supabase } from './lib/supabaseClient';
 
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(Boolean(data.session));
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(Boolean(session));
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const openAuth = (mode: 'signin' | 'signup') => {
     setAuthMode(mode);

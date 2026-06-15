@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { enhanceResumeBullet, generateResumeSummary } from '../lib/aiClient';
 
 // --- TYPES ---
 
@@ -92,6 +92,7 @@ const ResumeBuilder: React.FC = () => {
 
   const [auditIssues, setAuditIssues] = useState<string[]>([]);
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('contact');
   const [activeTemplate, setActiveTemplate] = useState<TemplateType>('classic');
   const previewRef = useRef<HTMLDivElement>(null);
@@ -132,12 +133,7 @@ const ResumeBuilder: React.FC = () => {
     if (!text) return;
     setLoadingId(id);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Rewrite this resume bullet point professionally. Use the 'Action + Context + Result' framework. Keep it under 25 words. Text: "${text}"`,
-      });
-      const enhancedText = response.text?.trim();
+      const enhancedText = await enhanceResumeBullet(text);
       if (enhancedText) {
         setData(prev => ({
           ...prev,
@@ -148,6 +144,21 @@ const ResumeBuilder: React.FC = () => {
       alert("AI enhancement failed. Check your API key.");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const generateSummary = async () => {
+    setIsSummaryLoading(true);
+    try {
+      const summary = await generateResumeSummary({
+        targetRole: data.targetRole,
+        resumeData: data,
+      });
+      setData(prev => ({ ...prev, summary }));
+    } catch (e) {
+      alert("AI summary generation failed. Please sign in and check your Supabase configuration.");
+    } finally {
+      setIsSummaryLoading(false);
     }
   };
 
@@ -246,8 +257,15 @@ const ResumeBuilder: React.FC = () => {
 
                 <button onClick={() => setActiveSection(activeSection === 'summary' ? '' : 'summary')} className="w-full px-6 py-4 text-left font-bold text-navy-900 border-b flex justify-between">2. Summary <i className={`fas fa-chevron-${activeSection === 'summary' ? 'up' : 'down'} opacity-40`}></i></button>
                 {activeSection === 'summary' && (
-                  <div className="p-6">
+                  <div className="p-6 space-y-3">
                     <textarea value={data.summary} onChange={e => setData(d => ({...d, summary: e.target.value}))} className="w-full h-32 p-3 text-sm border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Professional overview..." />
+                    <button
+                      onClick={generateSummary}
+                      disabled={isSummaryLoading}
+                      className="text-[10px] font-bold text-brand-600 hover:text-brand-700 uppercase tracking-widest disabled:opacity-50"
+                    >
+                      <i className="fas fa-magic mr-1"></i> {isSummaryLoading ? 'Generating...' : 'Generate Summary with AI'}
+                    </button>
                   </div>
                 )}
 

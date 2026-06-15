@@ -1,5 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,62 +12,66 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
   const [mode, setMode] = useState(initialMode);
   const [formData, setFormData] = useState({
     name: '',
-    identifier: '', // email or username
+    identifier: '',
     password: ''
   });
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset mode and form when modal opens
   useEffect(() => {
     setMode(initialMode);
     setFormData({ name: '', identifier: '', password: '' });
+    setErrorMessage('');
   }, [initialMode, isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (mode === 'signin') {
-      // Admin Check Logic - Supports 'username' or 'admin'
-      const isAdminUser = formData.identifier.toLowerCase() === 'username' || formData.identifier.toLowerCase() === 'admin';
-      
-      if (isAdminUser && formData.password === 'password') {
-        alert("👑 Admin Access Granted!\n\nWelcome back, Administrator.");
-        onLoginSuccess();
-      } else {
-        // Standard User Login Mockup
-        alert(`✅ Successfully signed in as ${formData.identifier}`);
-        onLoginSuccess();
-      }
-    } else {
-      // Sign Up Mockup
-      alert(`✅ Account created for ${formData.name}!`);
-      onLoginSuccess();
-    }
-    
-    onClose();
-  };
 
-  const fillAdminCredentials = () => {
-    setFormData({
-      ...formData,
-      identifier: 'username',
-      password: 'password'
-    });
+    if (!supabase || !isSupabaseConfigured) {
+      setErrorMessage('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      const email = formData.identifier.trim();
+      const authResult = mode === 'signin'
+        ? await supabase.auth.signInWithPassword({ email, password: formData.password })
+        : await supabase.auth.signUp({
+            email,
+            password: formData.password,
+            options: {
+              data: {
+                full_name: formData.name,
+              },
+            },
+          });
+
+      if (authResult.error) {
+        setErrorMessage(authResult.error.message);
+        return;
+      }
+
+      onLoginSuccess();
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-       {/* Backdrop */}
-       <div 
-         className="absolute inset-0 bg-navy-900/60 backdrop-blur-sm transition-opacity" 
+       <div
+         className="absolute inset-0 bg-navy-900/60 backdrop-blur-sm transition-opacity"
          onClick={onClose}
        ></div>
 
-       {/* Modal */}
        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-fade-in-up">
-         {/* Close Button */}
-         <button 
+         <button
            onClick={onClose}
            className="absolute top-4 right-4 text-slate-400 hover:text-navy-900 transition-colors z-10 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
          >
@@ -80,19 +84,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                 {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
               </h2>
               <p className="text-slate-600 text-sm">
-                {mode === 'signin' 
-                  ? 'Enter your details to access your dashboard.' 
+                {mode === 'signin'
+                  ? 'Enter your details to access your dashboard.'
                   : 'Start your journey to a better career today.'}
               </p>
             </div>
 
-            {/* Social Auth */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <button className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button type="button" className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
                 <i className="fab fa-google text-red-500 mr-2"></i>
                 Google
               </button>
-              <button className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
+              <button type="button" className="flex items-center justify-center px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700">
                 <i className="fab fa-linkedin text-[#0077b5] text-lg mr-2"></i>
                 LinkedIn
               </button>
@@ -107,13 +110,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
               </div>
             </div>
 
-            {/* Form */}
             <form className="space-y-4" onSubmit={handleSubmit}>
               {mode === 'signup' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
@@ -122,29 +124,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                   />
                 </div>
               )}
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  {mode === 'signin' ? 'Email or Username' : 'Email Address'}
+                  Email Address
                 </label>
-                <input 
-                  type={mode === 'signin' ? "text" : "email"}
+                <input
+                  type="email"
                   value={formData.identifier}
                   onChange={(e) => setFormData({...formData, identifier: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
-                  placeholder={mode === 'signin' ? "e.g. username" : "john@example.com"}
+                  placeholder="john@example.com"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition-all placeholder-slate-400"
-                  placeholder="••••••••"
+                  placeholder="Password"
                   required
                 />
               </div>
@@ -159,35 +161,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode, onL
                 </div>
               )}
 
-              <button 
+              <button
                 type="submit"
-                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2"
+                disabled={isSubmitting}
+                className="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 mt-2 disabled:opacity-60"
               >
-                {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                {isSubmitting ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
             </form>
-            
-            {/* Demo Hint with Click-to-Fill */}
-            {mode === 'signin' && (
-               <div 
-                 onClick={fillAdminCredentials}
-                 className="mt-6 p-4 bg-brand-50 rounded-xl border border-brand-200 text-xs text-slate-600 text-center cursor-pointer hover:bg-brand-100 hover:border-brand-300 transition-all duration-200 group relative overflow-hidden shadow-sm"
-                 title="Click to auto-fill admin credentials"
-               >
-                  <div className="absolute top-0 right-0 bg-brand-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">
-                    TESTING
-                  </div>
-                  <p className="font-bold text-brand-700 mb-1 text-sm group-hover:text-brand-800 transition-colors flex items-center justify-center">
-                    <i className="fas fa-magic mr-2 animate-pulse"></i> Use Demo Account
-                  </p>
-                  <p className="opacity-90 mt-1">
-                    Click here to auto-fill credentials and unlock "Pro" features like ATS suggestions.
-                  </p>
-               </div>
+
+            {errorMessage && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
+                {errorMessage}
+              </div>
             )}
          </div>
 
-         {/* Footer */}
          <div className="bg-slate-50 px-8 py-4 text-center text-sm border-t border-slate-100">
            {mode === 'signin' ? (
              <p className="text-slate-600">

@@ -1,6 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Type, Modality } from "@google/genai";
+import {
+  createLiveInterviewSocket,
+  getInterviewFeedback,
+  type InterviewFeedback,
+  type TranscriptItem,
+} from '../lib/aiClient';
 
 // --- ENCODING & DECODING HELPERS ---
 
@@ -54,19 +59,6 @@ async function pcmToAudioBuffer(
   return buffer;
 }
 
-interface TranscriptItem {
-  role: 'user' | 'ai';
-  text: string;
-}
-
-interface InterviewFeedback {
-  score: number;
-  summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  suggestions: string[];
-}
-
 const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Marathi', 'Tamil', 'Telugu', 'Gujarati', 'Kannada', 'Spanish', 'French', 'German'];
 
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
@@ -84,7 +76,7 @@ const LiveInterview: React.FC = () => {
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
-  const sessionRef = useRef<any>(null);
+  const sessionRef = useRef<WebSocket | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextStartTimeRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
@@ -158,75 +150,74 @@ const LiveInterview: React.FC = () => {
       analyserRef.current = analyser;
       drawVisualizer();
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          systemInstruction: `You are a professional, high-pressure interviewer for the position of ${jobRole}. Conduct the interview in ${language}. Ask one question at a time. Be critical but fair. Initial greeting should acknowledge the candidate's resume for ${jobRole}.`,
-        },
-        callbacks: {
-          onopen: () => {
-            setIsConnected(true);
-            setStage('interview');
-            const source = inputCtx.createMediaStreamSource(stream);
-            const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const pcm = createBlob(e.inputBuffer.getChannelData(0));
-              sessionPromise.then(s => s.sendRealtimeInput({ media: pcm }));
-            };
-            source.connect(analyser);
-            analyser.connect(scriptProcessor);
-            scriptProcessor.connect(inputCtx.destination);
-            sessionPromise.then(s => sessionRef.current = s);
-          },
-          onmessage: async (msg: LiveServerMessage) => {
-            if (msg.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              return;
-            }
+      const relaySocket = await createLiveInterviewSocket({ jobRole, language });
+      sessionRef.current = relaySocket;
 
-            if (msg.serverContent?.inputTranscription) currentInputTransRef.current += msg.serverContent.inputTranscription.text;
-            if (msg.serverContent?.outputTranscription) currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
-            
-            if (msg.serverContent?.turnComplete) {
-              setTranscripts(p => [...p, 
-                { role: 'user', text: currentInputTransRef.current }, 
-                { role: 'ai', text: currentOutputTransRef.current }
-              ]);
-              currentInputTransRef.current = '';
-              currentOutputTransRef.current = '';
-            }
+      relaySocket.onopen = () => {
+        setIsConnected(true);
+        setStage('interview');
+        const source = inputCtx.createMediaStreamSource(stream);
+        const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
+        scriptProcessor.onaudioprocess = (e) => {
+          if (relaySocket.readyState !== WebSocket.OPEN) return;
+          const pcm = createBlob(e.inputBuffer.getChannelData(0));
+          relaySocket.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [pcm],
+            },
+          }));
+        };
+        source.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(inputCtx.destination);
+      };
 
-            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (audioData) {
-              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
-              const buffer = await pcmToAudioBuffer(decode(audioData), outputCtx, 24000, 1);
-              const source = outputCtx.createBufferSource();
-              source.buffer = buffer;
-              source.connect(outputNode);
-              source.start(nextStartTimeRef.current);
-              nextStartTimeRef.current += buffer.duration;
-              sourcesRef.current.add(source);
-            }
-          },
-          onerror: (e) => { 
-            console.error(e);
-            cleanupAudio(); 
-            setStage('setup'); 
-            setIsError(true); 
-            setErrorMessage("An error occurred during the session."); 
-          },
-          onclose: () => {
-            setIsConnected(false);
-          }
+      relaySocket.onmessage = async (event) => {
+        const msg = JSON.parse(event.data);
+
+        if (msg.serverContent?.interrupted) {
+          sourcesRef.current.forEach(s => { try { s.stop(); } catch(e){} });
+          sourcesRef.current.clear();
+          nextStartTimeRef.current = 0;
+          return;
         }
-      });
+
+        if (msg.serverContent?.inputTranscription) currentInputTransRef.current += msg.serverContent.inputTranscription.text;
+        if (msg.serverContent?.outputTranscription) currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
+
+        if (msg.serverContent?.turnComplete) {
+          setTranscripts(p => [...p,
+            { role: 'user', text: currentInputTransRef.current },
+            { role: 'ai', text: currentOutputTransRef.current }
+          ]);
+          currentInputTransRef.current = '';
+          currentOutputTransRef.current = '';
+        }
+
+        const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+        if (audioData) {
+          nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
+          const buffer = await pcmToAudioBuffer(decode(audioData), outputCtx, 24000, 1);
+          const source = outputCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(outputNode);
+          source.start(nextStartTimeRef.current);
+          nextStartTimeRef.current += buffer.duration;
+          sourcesRef.current.add(source);
+        }
+      };
+
+      relaySocket.onerror = (e) => {
+        console.error(e);
+        cleanupAudio();
+        setStage('setup');
+        setIsError(true);
+        setErrorMessage("An error occurred during the session.");
+      };
+
+      relaySocket.onclose = () => {
+        setIsConnected(false);
+      };
     } catch (err: any) {
       console.error(err);
       setStage('setup');
@@ -240,29 +231,10 @@ const LiveInterview: React.FC = () => {
     cleanupAudio();
     setIsConnected(false);
     setStage('processing_feedback');
-    
-    const history = transcripts.map(t => `${t.role.toUpperCase()}: ${t.text}`).join('\n');
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const res = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Analyze the following interview for a ${jobRole} position. Provide a score out of 100, a summary, strengths, weaknesses, and specific suggestions for improvement. Return purely JSON.\n\nINTERVIEW LOG:\n${history}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: { 
-              score: { type: Type.NUMBER }, 
-              summary: { type: Type.STRING }, 
-              strengths: { type: Type.ARRAY, items: { type: Type.STRING } }, 
-              weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }, 
-              suggestions: { type: Type.ARRAY, items: { type: Type.STRING } } 
-            },
-            required: ["score", "summary", "strengths", "weaknesses", "suggestions"]
-          }
-        }
-      });
-      setFeedback(JSON.parse(res.text || '{}'));
+      const feedbackResult = await getInterviewFeedback({ jobRole, transcripts });
+      setFeedback(feedbackResult);
       setStage('feedback');
     } catch { 
       setStage('setup'); 
