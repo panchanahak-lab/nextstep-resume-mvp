@@ -81,6 +81,9 @@ const LiveInterview: React.FC = () => {
   const nextStartTimeRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const mediaSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const mutedProcessorOutputRef = useRef<GainNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,10 +94,35 @@ const LiveInterview: React.FC = () => {
   const cleanupAudio = () => {
     sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) {} });
     sourcesRef.current.clear();
+    if (scriptProcessorRef.current) {
+      try { scriptProcessorRef.current.disconnect(); } catch (e) {}
+      scriptProcessorRef.current.onaudioprocess = null;
+      scriptProcessorRef.current = null;
+    }
+    if (mediaSourceRef.current) {
+      try { mediaSourceRef.current.disconnect(); } catch (e) {}
+      mediaSourceRef.current = null;
+    }
+    if (mutedProcessorOutputRef.current) {
+      try { mutedProcessorOutputRef.current.disconnect(); } catch (e) {}
+      mutedProcessorOutputRef.current = null;
+    }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-    if (audioContextRef.current) audioContextRef.current.close();
-    if (inputAudioContextRef.current) inputAudioContextRef.current.close();
+    streamRef.current = null;
+    if (sessionRef.current) {
+      try { sessionRef.current.close(); } catch (e) {}
+      sessionRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (inputAudioContextRef.current) {
+      inputAudioContextRef.current.close();
+      inputAudioContextRef.current = null;
+    }
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
   };
 
   const drawVisualizer = () => {
@@ -158,6 +186,24 @@ const LiveInterview: React.FC = () => {
         setStage('interview');
         const source = inputCtx.createMediaStreamSource(stream);
         const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
+        const mutedOutput = inputCtx.createGain();
+        mutedOutput.gain.value = 0;
+        mediaSourceRef.current = source;
+        scriptProcessorRef.current = scriptProcessor;
+        mutedProcessorOutputRef.current = mutedOutput;
+
+        relaySocket.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: 'user',
+              parts: [{
+                text: `Start the mock interview now for a ${jobRole} role. Speak in ${language}. Ask the first question only.`,
+              }],
+            }],
+            turnComplete: true,
+          },
+        }));
+
         scriptProcessor.onaudioprocess = (e) => {
           if (relaySocket.readyState !== WebSocket.OPEN) return;
           const pcm = createBlob(e.inputBuffer.getChannelData(0));
@@ -169,7 +215,8 @@ const LiveInterview: React.FC = () => {
         };
         source.connect(analyser);
         analyser.connect(scriptProcessor);
-        scriptProcessor.connect(inputCtx.destination);
+        scriptProcessor.connect(mutedOutput);
+        mutedOutput.connect(inputCtx.destination);
       };
 
       relaySocket.onmessage = async (event) => {

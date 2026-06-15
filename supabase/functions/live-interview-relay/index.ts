@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
   let sessionId: string | null = null;
   let closed = false;
   let persisted = false;
+  const pendingClientMessages: string[] = [];
 
   const closeBoth = (code = 1000, reason = "Session ended") => {
     if (closed) return;
@@ -134,6 +135,9 @@ Deno.serve(async (req) => {
 
   gemini.onopen = () => {
     gemini.send(JSON.stringify(buildGeminiSetup(jobRole, language)));
+    while (pendingClientMessages.length > 0 && gemini.readyState === WebSocket.OPEN) {
+      gemini.send(pendingClientMessages.shift()!);
+    }
   };
 
   socket.onmessage = (event) => {
@@ -142,6 +146,8 @@ Deno.serve(async (req) => {
 
     if (gemini.readyState === WebSocket.OPEN) {
       gemini.send(payload);
+    } else {
+      pendingClientMessages.push(payload);
     }
   };
 
