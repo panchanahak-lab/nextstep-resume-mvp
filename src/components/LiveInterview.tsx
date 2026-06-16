@@ -10,10 +10,9 @@ import {
 
 // --- ENCODING & DECODING HELPERS ---
 
-function createBlob(data: Float32Array): { data: string; mimeType: string } {
-  const int16 = floatToInt16(data);
+function createBlobFromInt16(data: Int16Array): { data: string; mimeType: string } {
   return {
-    data: encode(new Uint8Array(int16.buffer)),
+    data: encode(new Uint8Array(data.buffer)),
     mimeType: 'audio/pcm;rate=16000',
   };
 }
@@ -132,9 +131,10 @@ const LANGUAGES = [
 ];
 
 const INPUT_SAMPLE_RATE = 16000;
-const SPEECH_RMS_THRESHOLD = 0.018;
+const SPEECH_RMS_THRESHOLD = 0.01;
 const AUTO_END_SILENCE_MS = 1400;
 const MIN_ANSWER_AUDIO_MS = 450;
+const PRE_SPEECH_CHUNKS = 3;
 
 const LANGUAGE_CODES: Record<string, string> = {
   English: 'en-IN',
@@ -195,6 +195,7 @@ const LiveInterview: React.FC = () => {
   const recognitionRef = useRef<any>(null);
   const recognitionActiveRef = useRef(false);
   const answerAudioChunksRef = useRef<Int16Array[]>([]);
+  const preSpeechChunksRef = useRef<Int16Array[]>([]);
   const answerStartedRef = useRef(false);
   const answerEndingRef = useRef(false);
   const awaitingAiResponseRef = useRef(false);
@@ -233,6 +234,7 @@ const LiveInterview: React.FC = () => {
 
   const resetAnswerCapture = () => {
     answerAudioChunksRef.current = [];
+    preSpeechChunksRef.current = [];
     answerStartedRef.current = false;
     answerEndingRef.current = false;
     lastSpeechAtRef.current = 0;
@@ -399,12 +401,7 @@ const LiveInterview: React.FC = () => {
       }
     } catch (error) {
       console.error(error);
-      if (fallbackText.trim()) {
-        currentInputTransRef.current = fallbackText.trim();
-        setTranscripts(prev => [...prev, { role: 'user', text: fallbackText.trim() }]);
-      } else {
-        setTranscripts(prev => [...prev, { role: 'user', text: `Answer audio captured in ${language}.` }]);
-      }
+      setLiveInputTranscript('');
     } finally {
       setLiveInputTranscript('');
       currentInputTransRef.current = '';
@@ -423,7 +420,7 @@ const LiveInterview: React.FC = () => {
     setIsAnswerEnding(source === 'manual');
 
     const chunks = answerAudioChunksRef.current;
-    const fallbackText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
+    const fallbackText = '';
     answerAudioChunksRef.current = [];
     answerStartedRef.current = false;
     lastSpeechAtRef.current = 0;
@@ -475,8 +472,7 @@ const LiveInterview: React.FC = () => {
         setStage('interview');
         resetBrowserSpeechTurn();
         resetAnswerCapture();
-        awaitingAiResponseRef.current = false;
-        startBrowserSpeechRecognition();
+        awaitingAiResponseRef.current = true;
         const source = inputCtx.createMediaStreamSource(stream);
         const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
         const mutedOutput = inputCtx.createGain();
@@ -501,29 +497,49 @@ const LiveInterview: React.FC = () => {
           if (relaySocket.readyState !== WebSocket.OPEN) return;
           if (relaySocket.bufferedAmount > 512 * 1024) return;
           const inputData = e.inputBuffer.getChannelData(0);
-          const pcm = createBlob(inputData);
-          relaySocket.send(JSON.stringify({
-            realtimeInput: {
-              audio: pcm,
-            },
-          }));
+          if (awaitingAiResponseRef.current || answerEndingRef.current) return;
 
           const rms = calculateRms(inputData);
           const now = Date.now();
           const isSpeech = rms >= SPEECH_RMS_THRESHOLD;
+          const int16Chunk = floatToInt16(inputData);
+          let startedThisFrame = false;
 
-          if (isSpeech && !awaitingAiResponseRef.current) {
-            answerStartedRef.current = true;
+          if (!answerStartedRef.current) {
+            preSpeechChunksRef.current.push(int16Chunk);
+            if (preSpeechChunksRef.current.length > PRE_SPEECH_CHUNKS) {
+              preSpeechChunksRef.current.shift();
+            }
+          }
+
+          if (isSpeech) {
+            if (!answerStartedRef.current) {
+              answerStartedRef.current = true;
+              startedThisFrame = true;
+              answerAudioChunksRef.current = [...preSpeechChunksRef.current];
+              for (const chunk of preSpeechChunksRef.current) {
+                relaySocket.send(JSON.stringify({
+                  realtimeInput: {
+                    audio: createBlobFromInt16(chunk),
+                  },
+                }));
+              }
+            }
             lastSpeechAtRef.current = now;
           }
 
-          if (answerStartedRef.current && !awaitingAiResponseRef.current) {
-            answerAudioChunksRef.current.push(floatToInt16(inputData));
+          if (answerStartedRef.current && !startedThisFrame) {
+            answerAudioChunksRef.current.push(int16Chunk);
+            const pcm = createBlobFromInt16(int16Chunk);
+            relaySocket.send(JSON.stringify({
+              realtimeInput: {
+                audio: pcm,
+              },
+            }));
           }
 
           if (
             answerStartedRef.current
-            && !awaitingAiResponseRef.current
             && lastSpeechAtRef.current > 0
             && now - lastSpeechAtRef.current >= AUTO_END_SILENCE_MS
           ) {
