@@ -51,6 +51,13 @@ function buildGeminiSetup(jobRole: string, language: string) {
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
+      realtimeInputConfig: {
+        automaticActivityDetection: {
+          disabled: false,
+          prefixPaddingMs: 120,
+          silenceDurationMs: 700,
+        },
+      },
       systemInstruction: {
         parts: [{
           text: `You are a professional, high-pressure interviewer for the position of ${jobRole}. Conduct the interview in ${language}. Ask one question at a time. Be critical but fair. Initial greeting should acknowledge the candidate's resume for ${jobRole}.`,
