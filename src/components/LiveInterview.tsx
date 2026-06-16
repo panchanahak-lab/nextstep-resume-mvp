@@ -91,6 +91,8 @@ const LiveInterview: React.FC = () => {
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
+  const [liveInputTranscript, setLiveInputTranscript] = useState('');
+  const [liveOutputTranscript, setLiveOutputTranscript] = useState('');
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -103,15 +105,49 @@ const LiveInterview: React.FC = () => {
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mutedProcessorOutputRef = useRef<GainNode | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentInputTransRef = useRef<string>('');
   const currentOutputTransRef = useRef<string>('');
 
+  const displayedTranscripts = [
+    ...transcripts,
+    ...(liveInputTranscript.trim() ? [{ role: 'user' as const, text: liveInputTranscript }] : []),
+    ...(liveOutputTranscript.trim() ? [{ role: 'ai' as const, text: liveOutputTranscript }] : []),
+  ];
+
+  const latestAiText = liveOutputTranscript.trim()
+    || [...transcripts].reverse().find(t => t.role === 'ai' && t.text.trim())?.text
+    || '';
+
+  const buildCompleteTranscript = () => {
+    const complete = [...transcripts];
+    const inputText = currentInputTransRef.current.trim();
+    const outputText = currentOutputTransRef.current.trim();
+
+    if (inputText) complete.push({ role: 'user', text: inputText });
+    if (outputText) complete.push({ role: 'ai', text: outputText });
+
+    return complete.filter(t => t.text.trim());
+  };
+
+  useEffect(() => {
+    if (stage !== 'interview') return;
+    transcriptScrollRef.current?.scrollTo({
+      top: transcriptScrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [stage, transcripts, liveInputTranscript, liveOutputTranscript]);
+
   const cleanupAudio = () => {
     sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) {} });
     sourcesRef.current.clear();
+    setLiveInputTranscript('');
+    setLiveOutputTranscript('');
+    currentInputTransRef.current = '';
+    currentOutputTransRef.current = '';
     if (scriptProcessorRef.current) {
       try { scriptProcessorRef.current.disconnect(); } catch (e) {}
       scriptProcessorRef.current.onaudioprocess = null;
@@ -203,7 +239,7 @@ const LiveInterview: React.FC = () => {
         setIsConnected(true);
         setStage('interview');
         const source = inputCtx.createMediaStreamSource(stream);
-        const scriptProcessor = inputCtx.createScriptProcessor(2048, 1, 1);
+        const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
         const mutedOutput = inputCtx.createGain();
         mutedOutput.gain.value = 0;
         mediaSourceRef.current = source;
@@ -224,6 +260,7 @@ const LiveInterview: React.FC = () => {
 
         scriptProcessor.onaudioprocess = (e) => {
           if (relaySocket.readyState !== WebSocket.OPEN) return;
+          if (relaySocket.bufferedAmount > 512 * 1024) return;
           const pcm = createBlob(e.inputBuffer.getChannelData(0));
           relaySocket.send(JSON.stringify({
             realtimeInput: {
@@ -247,16 +284,29 @@ const LiveInterview: React.FC = () => {
           return;
         }
 
-        if (msg.serverContent?.inputTranscription) currentInputTransRef.current += msg.serverContent.inputTranscription.text;
-        if (msg.serverContent?.outputTranscription) currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
+        if (msg.serverContent?.inputTranscription?.text) {
+          currentInputTransRef.current += msg.serverContent.inputTranscription.text;
+          setLiveInputTranscript(currentInputTransRef.current);
+        }
+        if (msg.serverContent?.outputTranscription?.text) {
+          currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
+          setLiveOutputTranscript(currentOutputTransRef.current);
+        }
 
         if (msg.serverContent?.turnComplete) {
-          setTranscripts(p => [...p,
-            { role: 'user', text: currentInputTransRef.current },
-            { role: 'ai', text: currentOutputTransRef.current }
-          ]);
+          const userText = currentInputTransRef.current.trim();
+          const aiText = currentOutputTransRef.current.trim();
+          const completedTurn: TranscriptItem[] = [
+            ...(userText ? [{ role: 'user' as const, text: userText }] : []),
+            ...(aiText ? [{ role: 'ai' as const, text: aiText }] : []),
+          ];
+          if (completedTurn.length > 0) {
+            setTranscripts(p => [...p, ...completedTurn]);
+          }
           currentInputTransRef.current = '';
           currentOutputTransRef.current = '';
+          setLiveInputTranscript('');
+          setLiveOutputTranscript('');
         }
 
         const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -292,13 +342,16 @@ const LiveInterview: React.FC = () => {
   };
 
   const stopAndFeedback = async () => {
+    const completeTranscripts = buildCompleteTranscript();
+    setTranscripts(completeTranscripts);
+
     if (sessionRef.current) sessionRef.current.close();
     cleanupAudio();
     setIsConnected(false);
     setStage('processing_feedback');
 
     try {
-      const feedbackResult = await getInterviewFeedback({ jobRole, transcripts });
+      const feedbackResult = await getInterviewFeedback({ jobRole, transcripts: completeTranscripts });
       setFeedback(feedbackResult);
       setStage('feedback');
     } catch { 
@@ -407,7 +460,7 @@ const LiveInterview: React.FC = () => {
                 <div className="bg-navy-900/50 p-6 rounded-2xl border border-slate-700/50 flex-grow min-h-[150px] flex flex-col justify-center text-center">
                   <p className="text-xs font-bold text-brand-400 mb-3 uppercase tracking-widest">Sarah (AI) Interviewer</p>
                   <p className="text-xl font-medium leading-relaxed italic text-slate-200">
-                    {transcripts[transcripts.length - 1]?.role === 'ai' ? `"${transcripts[transcripts.length - 1].text}"` : "Listening to you..."}
+                    {latestAiText ? `"${latestAiText}"` : liveInputTranscript.trim() ? "Listening to your answer..." : "Listening to you..."}
                   </p>
                 </div>
 
@@ -418,8 +471,8 @@ const LiveInterview: React.FC = () => {
 
               <div className="bg-navy-900/80 p-4 rounded-2xl border border-slate-700/50 flex flex-col h-[500px]">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pb-2 border-b border-slate-700/50">Transcript</h3>
-                <div className="flex-grow overflow-y-auto custom-scrollbar space-y-4 pr-2">
-                  {transcripts.map((t, i) => (
+                <div ref={transcriptScrollRef} className="flex-grow overflow-y-auto custom-scrollbar space-y-4 pr-2">
+                  {displayedTranscripts.map((t, i) => (
                     <div key={i} className={`flex flex-col ${t.role === 'user' ? 'items-end' : 'items-start'}`}>
                       <span className="text-[10px] font-bold text-slate-500 uppercase mb-1">{t.role === 'user' ? 'You' : 'Sarah'}</span>
                       <div className={`p-3 rounded-2xl text-xs max-w-[90%] ${t.role === 'user' ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'}`}>
@@ -427,7 +480,7 @@ const LiveInterview: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                  {transcripts.length === 0 && <p className="text-center text-slate-600 text-xs mt-20">Transcript will appear as you talk.</p>}
+                  {displayedTranscripts.length === 0 && <p className="text-center text-slate-600 text-xs mt-20">Transcript will appear as you talk.</p>}
                 </div>
               </div>
             </div>
