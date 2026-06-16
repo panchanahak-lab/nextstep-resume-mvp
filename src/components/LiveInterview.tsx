@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   createLiveInterviewSocket,
   getInterviewFeedback,
+  transcribeInterviewAnswer,
   type InterviewFeedback,
   type TranscriptItem,
 } from '../lib/aiClient';
@@ -10,15 +11,66 @@ import {
 // --- ENCODING & DECODING HELPERS ---
 
 function createBlob(data: Float32Array): { data: string; mimeType: string } {
-  const l = data.length;
-  const int16 = new Int16Array(l);
-  for (let i = 0; i < l; i++) {
-    int16[i] = data[i] * 32768;
-  }
+  const int16 = floatToInt16(data);
   return {
     data: encode(new Uint8Array(int16.buffer)),
     mimeType: 'audio/pcm;rate=16000',
   };
+}
+
+function floatToInt16(data: Float32Array): Int16Array {
+  const int16 = new Int16Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    const sample = Math.max(-1, Math.min(1, data[i]));
+    int16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return int16;
+}
+
+function calculateRms(data: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i] * data[i];
+  }
+  return Math.sqrt(sum / data.length);
+}
+
+function createWavBase64(chunks: Int16Array[], sampleRate: number): string {
+  const totalSamples = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const bytesPerSample = 2;
+  const dataSize = totalSamples * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  let offset = 0;
+
+  const writeString = (value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset++, value.charCodeAt(i));
+    }
+  };
+
+  writeString('RIFF');
+  view.setUint32(offset, 36 + dataSize, true); offset += 4;
+  writeString('WAVE');
+  writeString('fmt ');
+  view.setUint32(offset, 16, true); offset += 4;
+  view.setUint16(offset, 1, true); offset += 2;
+  view.setUint16(offset, 1, true); offset += 2;
+  view.setUint32(offset, sampleRate, true); offset += 4;
+  view.setUint32(offset, sampleRate * bytesPerSample, true); offset += 4;
+  view.setUint16(offset, bytesPerSample, true); offset += 2;
+  view.setUint16(offset, 16, true); offset += 2;
+  writeString('data');
+  view.setUint32(offset, dataSize, true); offset += 4;
+
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      view.setInt16(offset, chunk[i], true);
+      offset += 2;
+    }
+  }
+
+  return encode(new Uint8Array(buffer));
 }
 
 function encode(bytes: Uint8Array) {
@@ -79,6 +131,11 @@ const LANGUAGES = [
   'Urdu',
 ];
 
+const INPUT_SAMPLE_RATE = 16000;
+const SPEECH_RMS_THRESHOLD = 0.018;
+const AUTO_END_SILENCE_MS = 1400;
+const MIN_ANSWER_AUDIO_MS = 450;
+
 const LANGUAGE_CODES: Record<string, string> = {
   English: 'en-IN',
   Hindi: 'hi-IN',
@@ -137,6 +194,11 @@ const LiveInterview: React.FC = () => {
   const browserSpeechSupportedRef = useRef(false);
   const recognitionRef = useRef<any>(null);
   const recognitionActiveRef = useRef(false);
+  const answerAudioChunksRef = useRef<Int16Array[]>([]);
+  const answerStartedRef = useRef(false);
+  const answerEndingRef = useRef(false);
+  const awaitingAiResponseRef = useRef(false);
+  const lastSpeechAtRef = useRef(0);
 
   const displayedTranscripts = [
     ...transcripts,
@@ -167,6 +229,13 @@ const LiveInterview: React.FC = () => {
   const resetBrowserSpeechTurn = () => {
     browserSpeechFinalRef.current = '';
     browserSpeechInterimRef.current = '';
+  };
+
+  const resetAnswerCapture = () => {
+    answerAudioChunksRef.current = [];
+    answerStartedRef.current = false;
+    answerEndingRef.current = false;
+    lastSpeechAtRef.current = 0;
   };
 
   const stopBrowserSpeechRecognition = () => {
@@ -247,6 +316,9 @@ const LiveInterview: React.FC = () => {
     currentInputTransRef.current = '';
     currentOutputTransRef.current = '';
     resetBrowserSpeechTurn();
+    resetAnswerCapture();
+    awaitingAiResponseRef.current = false;
+    setIsAnswerEnding(false);
     if (scriptProcessorRef.current) {
       try { scriptProcessorRef.current.disconnect(); } catch (e) {}
       scriptProcessorRef.current.onaudioprocess = null;
@@ -303,6 +375,64 @@ const LiveInterview: React.FC = () => {
     draw();
   };
 
+  const transcribeCapturedAnswer = async (chunks: Int16Array[], fallbackText: string) => {
+    const durationMs = chunks.reduce((total, chunk) => total + chunk.length, 0) / INPUT_SAMPLE_RATE * 1000;
+    if (durationMs < MIN_ANSWER_AUDIO_MS && !fallbackText.trim()) return;
+
+    setLiveInputTranscript('Transcribing your answer...');
+
+    try {
+      const transcript = chunks.length > 0
+        ? await transcribeInterviewAnswer({
+            language,
+            audio: {
+              mimeType: 'audio/wav',
+              data: createWavBase64(chunks, INPUT_SAMPLE_RATE),
+            },
+          })
+        : fallbackText;
+
+      const finalText = transcript.trim() || fallbackText.trim();
+      if (finalText) {
+        currentInputTransRef.current = finalText;
+        setTranscripts(prev => [...prev, { role: 'user', text: finalText }]);
+      }
+    } catch (error) {
+      console.error(error);
+      if (fallbackText.trim()) {
+        currentInputTransRef.current = fallbackText.trim();
+        setTranscripts(prev => [...prev, { role: 'user', text: fallbackText.trim() }]);
+      } else {
+        setTranscripts(prev => [...prev, { role: 'user', text: `Answer audio captured in ${language}.` }]);
+      }
+    } finally {
+      setLiveInputTranscript('');
+      currentInputTransRef.current = '';
+      resetBrowserSpeechTurn();
+    }
+  };
+
+  const finishAnswer = (source: 'manual' | 'auto' = 'manual') => {
+    const socket = sessionRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || answerEndingRef.current) {
+      return;
+    }
+
+    answerEndingRef.current = true;
+    awaitingAiResponseRef.current = true;
+    setIsAnswerEnding(source === 'manual');
+
+    const chunks = answerAudioChunksRef.current;
+    const fallbackText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
+    answerAudioChunksRef.current = [];
+    answerStartedRef.current = false;
+    lastSpeechAtRef.current = 0;
+
+    socket.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+    void transcribeCapturedAnswer(chunks, fallbackText);
+    window.setTimeout(() => setIsAnswerEnding(false), 900);
+  };
+
   const startInterviewFlow = async () => {
     if (!resumeFile || !jobRole) {
       alert("Please upload a resume and specify the job role.");
@@ -314,10 +444,16 @@ const LiveInterview: React.FC = () => {
     setErrorMessage("");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = stream;
 
-      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: INPUT_SAMPLE_RATE });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       await inputCtx.resume();
       await outputCtx.resume();
@@ -338,6 +474,8 @@ const LiveInterview: React.FC = () => {
         setIsConnected(true);
         setStage('interview');
         resetBrowserSpeechTurn();
+        resetAnswerCapture();
+        awaitingAiResponseRef.current = false;
         startBrowserSpeechRecognition();
         const source = inputCtx.createMediaStreamSource(stream);
         const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
@@ -362,12 +500,35 @@ const LiveInterview: React.FC = () => {
         scriptProcessor.onaudioprocess = (e) => {
           if (relaySocket.readyState !== WebSocket.OPEN) return;
           if (relaySocket.bufferedAmount > 512 * 1024) return;
-          const pcm = createBlob(e.inputBuffer.getChannelData(0));
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcm = createBlob(inputData);
           relaySocket.send(JSON.stringify({
             realtimeInput: {
               audio: pcm,
             },
           }));
+
+          const rms = calculateRms(inputData);
+          const now = Date.now();
+          const isSpeech = rms >= SPEECH_RMS_THRESHOLD;
+
+          if (isSpeech && !awaitingAiResponseRef.current) {
+            answerStartedRef.current = true;
+            lastSpeechAtRef.current = now;
+          }
+
+          if (answerStartedRef.current && !awaitingAiResponseRef.current) {
+            answerAudioChunksRef.current.push(floatToInt16(inputData));
+          }
+
+          if (
+            answerStartedRef.current
+            && !awaitingAiResponseRef.current
+            && lastSpeechAtRef.current > 0
+            && now - lastSpeechAtRef.current >= AUTO_END_SILENCE_MS
+          ) {
+            finishAnswer('auto');
+          }
         };
         source.connect(analyser);
         analyser.connect(scriptProcessor);
@@ -385,20 +546,14 @@ const LiveInterview: React.FC = () => {
           return;
         }
 
-        if (msg.serverContent?.inputTranscription?.text && !browserSpeechFinalRef.current.trim() && !browserSpeechInterimRef.current.trim()) {
-          currentInputTransRef.current += msg.serverContent.inputTranscription.text;
-          setLiveInputTranscript(currentInputTransRef.current);
-        }
         if (msg.serverContent?.outputTranscription?.text) {
           currentOutputTransRef.current += msg.serverContent.outputTranscription.text;
           setLiveOutputTranscript(currentOutputTransRef.current);
         }
 
         if (msg.serverContent?.turnComplete) {
-          const userText = currentInputTransRef.current.trim();
           const aiText = currentOutputTransRef.current.trim();
           const completedTurn: TranscriptItem[] = [
-            ...(userText ? [{ role: 'user' as const, text: userText }] : []),
             ...(aiText ? [{ role: 'ai' as const, text: aiText }] : []),
           ];
           if (completedTurn.length > 0) {
@@ -407,6 +562,8 @@ const LiveInterview: React.FC = () => {
           currentInputTransRef.current = '';
           currentOutputTransRef.current = '';
           resetBrowserSpeechTurn();
+          resetAnswerCapture();
+          awaitingAiResponseRef.current = false;
           setLiveInputTranscript('');
           setLiveOutputTranscript('');
           setIsAnswerEnding(false);
@@ -442,15 +599,6 @@ const LiveInterview: React.FC = () => {
       setIsError(true);
       setErrorMessage(err.name === 'NotAllowedError' ? "Microphone access denied. Please check your browser settings." : "Failed to initialize the interview. Please try again.");
     }
-  };
-
-  const finishAnswer = () => {
-    const socket = sessionRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
-
-    setIsAnswerEnding(true);
-    socket.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
-    window.setTimeout(() => setIsAnswerEnding(false), 1500);
   };
 
   const stopAndFeedback = async () => {
@@ -577,9 +725,15 @@ const LiveInterview: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={finishAnswer}
-                  disabled={!isConnected || isAnswerEnding}
-                  className="w-full py-4 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3"
+                  onClick={() => {
+                    if (sessionRef.current?.readyState !== WebSocket.OPEN) {
+                      setIsError(true);
+                      setErrorMessage('The live interview connection stopped. Please end this session and start again.');
+                      return;
+                    }
+                    finishAnswer('manual');
+                  }}
+                  className="w-full py-4 bg-brand-500 hover:bg-brand-600 rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3"
                 >
                   <i className="fas fa-paper-plane"></i> {isAnswerEnding ? 'Sending Answer...' : "I'm Done Answering"}
                 </button>
@@ -587,6 +741,13 @@ const LiveInterview: React.FC = () => {
                 <button onClick={stopAndFeedback} className="w-full py-5 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-2xl font-bold mt-4 transition-all flex items-center justify-center gap-3">
                   <i className="fas fa-stop-circle"></i> End Session & Get Feedback
                 </button>
+
+                {isError && errorMessage && (
+                  <div className="mt-4 bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-xl text-sm flex items-center gap-3">
+                    <i className="fas fa-exclamation-circle"></i>
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-navy-900/80 p-4 rounded-2xl border border-slate-700/50 flex flex-col h-[500px]">
