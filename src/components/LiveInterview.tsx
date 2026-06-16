@@ -306,6 +306,9 @@ const LiveInterview: React.FC = () => {
         <div className={`bg-slate-800/40 rounded-3xl border border-slate-700/50 backdrop-blur-md p-6 md:p-10 shadow-2xl ${stage === 'feedback' ? 'printable-content' : ''}`}>
           {stage === 'setup' && (
             <div className="max-w-md mx-auto space-y-6 animate-fade-in">
+              <div className="bg-sky-500/10 border border-sky-500/20 rounded-2xl p-5 text-sm text-slate-200">
+                <p>For best results — use headphones, sit in a quiet room, and speak clearly. This feature works best on Chrome browser.</p>
+              </div>
               <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-5 text-sm text-slate-200">
                 <p className="font-bold text-brand-300 mb-1">Warm-up</p>
                 <p>Take one calm breath, then answer in this structure: situation, action, result. The AI interviewer will ask one question at a time and adapt to your response.</p>
