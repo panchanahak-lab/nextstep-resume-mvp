@@ -49,11 +49,13 @@ function buildGeminiSetup(jobRole: string, language: string) {
   return {
     setup: {
       model: `models/${LIVE_MODEL}`,
-      responseModalities: ["AUDIO"],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: LIVE_VOICE_NAME,
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: LIVE_VOICE_NAME,
+            },
           },
         },
       },
