@@ -107,6 +107,15 @@ export async function transcribeInterviewAnswer(payload: {
   return result.transcript;
 }
 
+export async function getInterviewTurn(payload: {
+  jobRole: string;
+  language: string;
+  transcripts: TranscriptItem[];
+}): Promise<string> {
+  const result = await invokeFunction<{ question: string }>('interview-turn', payload);
+  return result.question;
+}
+
 export async function createLiveInterviewSocket(params: {
   jobRole: string;
   language: string;
