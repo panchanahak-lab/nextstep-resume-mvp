@@ -1,7 +1,8 @@
 import { logError } from "../_shared/cors.ts";
 import { getServiceClient } from "../_shared/supabase.ts";
 
-const LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
+const LIVE_MODEL = "gemini-3.1-flash-live-preview";
+const LIVE_VOICE_NAME = "Kore";
 const MAX_SESSION_MS = 10 * 60 * 1000;
 
 async function normalizeSocketData(data: unknown): Promise<string> {
@@ -36,20 +37,28 @@ async function authenticate(req: Request) {
 }
 
 function buildGeminiSetup(jobRole: string, language: string) {
+  console.log("[live-interview-relay] Gemini Live setup", {
+    selectedModel: LIVE_MODEL,
+    selectedVoiceName: LIVE_VOICE_NAME,
+    selectedInterviewLanguage: language,
+    fallbackTtsOrBrowserSpeechSynthesis: false,
+    inputAudio: "raw 16-bit PCM, 16kHz, mono, little-endian",
+    outputAudioPlayback: "raw 16-bit PCM, 24kHz, mono, little-endian",
+  });
+
   return {
     setup: {
       model: `models/${LIVE_MODEL}`,
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: "Kore",
-            },
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: LIVE_VOICE_NAME,
           },
         },
       },
       outputAudioTranscription: {},
+      inputAudioTranscription: {},
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: false,
@@ -59,7 +68,7 @@ function buildGeminiSetup(jobRole: string, language: string) {
       },
       systemInstruction: {
         parts: [{
-          text: `You are a professional, high-pressure interviewer for the position of ${jobRole}. Conduct the interview in ${language}. Ask one question at a time. Be critical but fair. Initial greeting should acknowledge the candidate's resume for ${jobRole}.`,
+          text: `You are Sarah, a professional, high-pressure interviewer for the position of ${jobRole}. Conduct the entire interview only in ${language}. Keep this selected interview language fixed for the whole session unless the user explicitly asks to change language. Ask one question at a time. Be critical but fair. Use the configured Gemini voice and do not switch voices. Start with one concise greeting and first question for ${jobRole}.`,
         }],
       },
     },

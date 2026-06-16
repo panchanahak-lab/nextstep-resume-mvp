@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  createLiveInterviewSocket,
   getInterviewFeedback,
-  getInterviewTurn,
-  transcribeInterviewAnswer,
   type InterviewFeedback,
   type TranscriptItem,
 } from '../lib/aiClient';
@@ -27,72 +26,81 @@ const LANGUAGES = [
   'Urdu',
 ];
 
-const LANGUAGE_CODES: Record<string, string> = {
-  English: 'en-IN',
-  Hindi: 'hi-IN',
-  Gujarati: 'gu-IN',
-  Marathi: 'mr-IN',
-  Bhojpuri: 'hi-IN',
-  Tamil: 'ta-IN',
-  Telugu: 'te-IN',
-  Bengali: 'bn-IN',
-  Odia: 'or-IN',
-  Malayalam: 'ml-IN',
-  Kannada: 'kn-IN',
-  Assamese: 'as-IN',
-  Nepali: 'ne-NP',
-  Punjabi: 'pa-IN',
-  Sindhi: 'sd-IN',
-  Kashmiri: 'ks-IN',
-  Urdu: 'ur-IN',
-};
+const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+const LIVE_VOICE_NAME = 'Kore';
+const INPUT_AUDIO_MIME_TYPE = 'audio/pcm;rate=16000';
+const OUTPUT_AUDIO_SAMPLE_RATE = 24000;
+const INPUT_AUDIO_SAMPLE_RATE = 16000;
 
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
-type InterviewStatus = 'speaking' | 'listening' | 'processing' | 'ready';
+type InterviewStatus = 'speaking' | 'listening' | 'processing' | 'ready' | 'connecting';
 
-const TRANSCRIPTION_TIMEOUT_MS = 12000;
-const FEMALE_VOICE_HINTS = ['female', 'zira', 'susan', 'heera', 'kalpana', 'google'];
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = String(reader.result || '');
-      resolve(result.includes(',') ? result.split(',')[1] : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
-    promise
-      .then(value => {
-        window.clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(error => {
-        window.clearTimeout(timer);
-        reject(error);
-      });
-  });
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
-function getPreferredVoice(language: string) {
-  const languageCode = LANGUAGE_CODES[language] || 'en-IN';
-  const shortCode = languageCode.split('-')[0].toLowerCase();
-  const voices = window.speechSynthesis.getVoices();
-  const matching = voices.filter(voice => {
-    const voiceLang = voice.lang.toLowerCase();
-    return voiceLang === languageCode.toLowerCase() || voiceLang.startsWith(`${shortCode}-`);
-  });
-  const female = matching.find(voice =>
-    FEMALE_VOICE_HINTS.some(hint => voice.name.toLowerCase().includes(hint)),
+function resampleTo16k(input: Float32Array, inputSampleRate: number): Float32Array {
+  if (inputSampleRate === INPUT_AUDIO_SAMPLE_RATE) return input;
+
+  const ratio = inputSampleRate / INPUT_AUDIO_SAMPLE_RATE;
+  const outputLength = Math.max(1, Math.round(input.length / ratio));
+  const output = new Float32Array(outputLength);
+
+  for (let i = 0; i < outputLength; i++) {
+    const sourceIndex = i * ratio;
+    const leftIndex = Math.floor(sourceIndex);
+    const rightIndex = Math.min(leftIndex + 1, input.length - 1);
+    const weight = sourceIndex - leftIndex;
+    output[i] = input[leftIndex] * (1 - weight) + input[rightIndex] * weight;
+  }
+
+  return output;
+}
+
+function floatToPcm16Base64(samples: Float32Array): string {
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    const sample = Math.max(-1, Math.min(1, samples[i]));
+    pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return bytesToBase64(new Uint8Array(pcm.buffer));
+}
+
+function pcm16Base64ToFloat(base64: string): Float32Array {
+  const bytes = base64ToBytes(base64);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const samples = new Float32Array(bytes.byteLength / 2);
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] = view.getInt16(i * 2, true) / 0x8000;
+  }
+  return samples;
+}
+
+function getServerText(message: any, key: 'inputTranscription' | 'outputTranscription'): string {
+  return (
+    message?.serverContent?.[key]?.text
+    || message?.serverContent?.[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)]?.text
+    || ''
   );
+}
 
-  return female || matching[0] || null;
+function getServerAudio(message: any): string[] {
+  const parts = message?.serverContent?.modelTurn?.parts || message?.serverContent?.model_turn?.parts || [];
+  return parts
+    .map((part: any) => part?.inlineData?.data || part?.inline_data?.data || '')
+    .filter(Boolean);
 }
 
 const LiveInterview: React.FC = () => {
@@ -100,6 +108,7 @@ const LiveInterview: React.FC = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobRole, setJobRole] = useState('');
   const [language, setLanguage] = useState('English');
+  const [sessionLanguage, setSessionLanguage] = useState('English');
   const [feedback, setFeedback] = useState<InterviewFeedback | null>(null);
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const [liveInputTranscript, setLiveInputTranscript] = useState('');
@@ -110,16 +119,20 @@ const LiveInterview: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordingChunksRef = useRef<Blob[]>([]);
+  const inputAudioContextRef = useRef<AudioContext | null>(null);
+  const outputAudioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const nextPlaybackTimeRef = useRef(0);
   const transcriptsRef = useRef<TranscriptItem[]>([]);
-  const browserSpeechFinalRef = useRef('');
-  const browserSpeechInterimRef = useRef('');
-  const recognitionRef = useRef<any>(null);
-  const recognitionActiveRef = useRef(false);
-  const processingRef = useRef(false);
+  const currentAiTextRef = useRef('');
+  const currentUserTextRef = useRef('');
+  const sessionLanguageRef = useRef('English');
+  const streamingActiveRef = useRef(false);
   const stoppedForFeedbackRef = useRef(false);
+  const hasNativeAudioRef = useRef(false);
 
   useEffect(() => {
     transcriptsRef.current = transcripts;
@@ -138,102 +151,180 @@ const LiveInterview: React.FC = () => {
     ...(liveInputTranscript.trim() ? [{ role: 'user' as const, text: liveInputTranscript }] : []),
   ];
 
+  const logVoicePipeline = (interviewLanguage: string) => {
+    console.info('[LiveInterview] Voice pipeline', {
+      selectedModel: LIVE_MODEL,
+      selectedVoiceName: LIVE_VOICE_NAME,
+      selectedInterviewLanguage: interviewLanguage,
+      fallbackTtsOrBrowserSpeechSynthesis: false,
+      inputAudio: 'raw 16-bit PCM, 16kHz, mono, little-endian',
+      outputAudioPlayback: 'raw 16-bit PCM, 24kHz, mono, little-endian',
+    });
+  };
+
+  const setFatalLiveError = (message: string) => {
+    setIsError(true);
+    setErrorMessage(message);
+    setStatus('ready');
+  };
+
+  const appendTranscript = (item: TranscriptItem) => {
+    const updated = [...transcriptsRef.current, item];
+    transcriptsRef.current = updated;
+    setTranscripts(updated);
+  };
+
+  const stopMicrophoneStreaming = () => {
+    streamingActiveRef.current = false;
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+    sourceRef.current?.disconnect();
+    sourceRef.current = null;
+    inputAudioContextRef.current?.close().catch(() => {});
+    inputAudioContextRef.current = null;
+  };
+
   const cleanupSession = () => {
-    window.speechSynthesis.cancel();
-    stopBrowserSpeechRecognition();
-    if (mediaRecorderRef.current?.state === 'recording') {
-      try { mediaRecorderRef.current.stop(); } catch (e) {}
-    }
-    mediaRecorderRef.current = null;
+    stopMicrophoneStreaming();
+    socketRef.current?.close();
+    socketRef.current = null;
+    outputAudioContextRef.current?.close().catch(() => {});
+    outputAudioContextRef.current = null;
     mediaStreamRef.current?.getTracks().forEach(track => track.stop());
     mediaStreamRef.current = null;
-    recordingChunksRef.current = [];
-    processingRef.current = false;
+    nextPlaybackTimeRef.current = 0;
+    currentAiTextRef.current = '';
+    currentUserTextRef.current = '';
+    hasNativeAudioRef.current = false;
     setLiveInputTranscript('');
     setStatus('ready');
   };
 
-  const stopBrowserSpeechRecognition = () => {
-    recognitionActiveRef.current = false;
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-      recognitionRef.current = null;
+  const playGeminiPcmAudio = async (base64Audio: string) => {
+    hasNativeAudioRef.current = true;
+    setStatus('speaking');
+
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!outputAudioContextRef.current) {
+      outputAudioContextRef.current = new AudioContextClass();
+      nextPlaybackTimeRef.current = outputAudioContextRef.current.currentTime;
     }
+
+    const audioContext = outputAudioContextRef.current;
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
+    const samples = pcm16Base64ToFloat(base64Audio);
+    const buffer = audioContext.createBuffer(1, samples.length, OUTPUT_AUDIO_SAMPLE_RATE);
+    buffer.copyToChannel(samples, 0);
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+
+    const startAt = Math.max(audioContext.currentTime, nextPlaybackTimeRef.current);
+    source.start(startAt);
+    nextPlaybackTimeRef.current = startAt + buffer.duration;
   };
 
-  const startBrowserSpeechRecognition = () => {
-    stopBrowserSpeechRecognition();
-    browserSpeechFinalRef.current = '';
-    browserSpeechInterimRef.current = '';
+  const startMicrophoneStreaming = async () => {
+    const socket = socketRef.current;
+    const stream = mediaStreamRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !stream || stoppedForFeedbackRef.current) return;
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    stopMicrophoneStreaming();
 
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognitionActiveRef.current = true;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = LANGUAGE_CODES[language] || 'en-IN';
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    inputAudioContextRef.current = audioContext;
+    const source = audioContext.createMediaStreamSource(stream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    sourceRef.current = source;
+    processorRef.current = processor;
 
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const text = event.results[i]?.[0]?.transcript || '';
-        if (event.results[i].isFinal) {
-          browserSpeechFinalRef.current += `${text} `;
-        } else {
-          interim += text;
-        }
+    processor.onaudioprocess = event => {
+      if (socket.readyState !== WebSocket.OPEN || !streamingActiveRef.current) return;
+      const mono = event.inputBuffer.getChannelData(0);
+      const pcmBase64 = floatToPcm16Base64(resampleTo16k(mono, audioContext.sampleRate));
+      socket.send(JSON.stringify({
+        realtimeInput: {
+          audio: {
+            mimeType: INPUT_AUDIO_MIME_TYPE,
+            data: pcmBase64,
+          },
+        },
+      }));
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+    streamingActiveRef.current = true;
+    setLiveInputTranscript('Listening...');
+    setStatus('listening');
+  };
+
+  const beginListeningAfterGeminiTurn = () => {
+    if (stoppedForFeedbackRef.current || stage === 'feedback') return;
+    const userText = currentUserTextRef.current.trim();
+    if (userText) {
+      appendTranscript({ role: 'user', text: userText });
+      currentUserTextRef.current = '';
+      setLiveInputTranscript('');
+    }
+    void startMicrophoneStreaming();
+  };
+
+  const handleGeminiMessage = async (payload: string) => {
+    let message: any;
+    try {
+      message = JSON.parse(payload);
+    } catch {
+      return;
+    }
+
+    if (message.setupComplete || message.setup_complete) {
+      socketRef.current?.send(JSON.stringify({
+        realtimeInput: {
+          text: `Start the ${sessionLanguageRef.current} mock interview now for ${jobRole}.`,
+        },
+      }));
+      return;
+    }
+
+    const outputText = getServerText(message, 'outputTranscription');
+    if (outputText) {
+      currentAiTextRef.current += outputText;
+      setCurrentQuestion(currentAiTextRef.current.trim());
+    }
+
+    const inputText = getServerText(message, 'inputTranscription');
+    if (inputText) {
+      currentUserTextRef.current += inputText;
+      setLiveInputTranscript(currentUserTextRef.current.trim());
+    }
+
+    const audioChunks = getServerAudio(message);
+    for (const chunk of audioChunks) {
+      await playGeminiPcmAudio(chunk);
+    }
+
+    const turnComplete = Boolean(message?.serverContent?.turnComplete || message?.serverContent?.turn_complete);
+    if (turnComplete) {
+      const aiText = currentAiTextRef.current.trim();
+      if (aiText) {
+        appendTranscript({ role: 'ai', text: aiText });
+        currentAiTextRef.current = '';
       }
 
-      browserSpeechInterimRef.current = interim;
-      const combined = `${browserSpeechFinalRef.current}${interim}`.trim();
-      if (combined) setLiveInputTranscript(combined);
-    };
+      if (!hasNativeAudioRef.current) {
+        setFatalLiveError('Gemini Live did not return native audio. Please end this session and start again.');
+        return;
+      }
 
-    recognition.onend = () => {
-      if (!recognitionActiveRef.current || stoppedForFeedbackRef.current) return;
-      window.setTimeout(() => {
-        try { recognition.start(); } catch (e) {}
-      }, 250);
-    };
-
-    try { recognition.start(); } catch (e) {}
-  };
-
-  const speakQuestion = (question: string) => {
-    window.speechSynthesis.cancel();
-    setStatus('speaking');
-    setCurrentQuestion(question);
-
-    const utterance = new SpeechSynthesisUtterance(question);
-    utterance.lang = LANGUAGE_CODES[language] || 'en-IN';
-    const preferredVoice = getPreferredVoice(language);
-    if (preferredVoice) utterance.voice = preferredVoice;
-    utterance.rate = 0.92;
-    utterance.pitch = 1;
-
-    utterance.onend = () => {
-      if (stage === 'feedback' || stoppedForFeedbackRef.current) return;
-      startRecording();
-    };
-
-    utterance.onerror = () => {
-      if (stage === 'feedback' || stoppedForFeedbackRef.current) return;
-      startRecording();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const askNextQuestion = async (nextTranscripts: TranscriptItem[]) => {
-    setStatus('processing');
-    const question = await getInterviewTurn({ jobRole, language, transcripts: nextTranscripts });
-    const updated = [...nextTranscripts, { role: 'ai' as const, text: question }];
-    transcriptsRef.current = updated;
-    setTranscripts(updated);
-    speakQuestion(question);
+      const playbackDelayMs = outputAudioContextRef.current
+        ? Math.max(300, (nextPlaybackTimeRef.current - outputAudioContextRef.current.currentTime) * 1000 + 150)
+        : 300;
+      window.setTimeout(beginListeningAfterGeminiTurn, playbackDelayMs);
+    }
   };
 
   const startInterviewFlow = async () => {
@@ -242,7 +333,12 @@ const LiveInterview: React.FC = () => {
       return;
     }
 
+    const fixedLanguage = language;
+    setSessionLanguage(fixedLanguage);
+    sessionLanguageRef.current = fixedLanguage;
+    logVoicePipeline(fixedLanguage);
     setStage('initializing');
+    setStatus('connecting');
     setIsError(false);
     setErrorMessage('');
     setTranscripts([]);
@@ -255,132 +351,64 @@ const LiveInterview: React.FC = () => {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          channelCount: 1,
         },
       });
       mediaStreamRef.current = stream;
-      setStage('interview');
-      await askNextQuestion([]);
+
+      const socket = await createLiveInterviewSocket({ jobRole, language: fixedLanguage });
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        setStage('interview');
+        setStatus('processing');
+      };
+
+      socket.onmessage = event => {
+        void handleGeminiMessage(String(event.data));
+      };
+
+      socket.onerror = () => {
+        cleanupSession();
+        setStage('setup');
+        setFatalLiveError('Gemini Live audio connection failed. Please try again.');
+      };
+
+      socket.onclose = event => {
+        if (stoppedForFeedbackRef.current) return;
+        cleanupSession();
+        setStage('setup');
+        setFatalLiveError(event.reason || 'Gemini Live audio connection stopped. Please start a new session.');
+      };
     } catch (err: any) {
       console.error(err);
       cleanupSession();
       setStage('setup');
-      setIsError(true);
-      setErrorMessage(err.name === 'NotAllowedError'
+      setFatalLiveError(err.name === 'NotAllowedError'
         ? 'Microphone access denied. Please check your browser settings.'
-        : 'Failed to start the interview. Please try again.');
+        : 'Failed to start Gemini Live interview audio. Please try again.');
     }
-  };
-
-  const startRecording = () => {
-    const stream = mediaStreamRef.current;
-    if (!stream || processingRef.current || stoppedForFeedbackRef.current) return;
-
-    recordingChunksRef.current = [];
-    const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? { mimeType: 'audio/webm;codecs=opus' }
-      : undefined;
-    const recorder = new MediaRecorder(stream, options);
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = event => {
-      if (event.data.size > 0) recordingChunksRef.current.push(event.data);
-    };
-
-    recorder.onstop = () => {
-      if (!stoppedForFeedbackRef.current) {
-        void processAnswer();
-      }
-    };
-
-    recorder.start();
-    startBrowserSpeechRecognition();
-    setLiveInputTranscript('Listening...');
-    setStatus('listening');
   };
 
   const finishAnswer = () => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder?.state === 'recording') {
-      stopBrowserSpeechRecognition();
-      recorder.stop();
-      setStatus('processing');
-      const browserText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
-      setLiveInputTranscript(browserText || 'Processing your answer...');
-      return;
-    }
-
-    if (status === 'speaking') {
-      window.speechSynthesis.cancel();
-      startRecording();
-    }
-  };
-
-  const processAnswer = async () => {
-    if (processingRef.current) return;
-    processingRef.current = true;
+    if (status !== 'listening') return;
+    stopMicrophoneStreaming();
     setStatus('processing');
-    const browserText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
-    setLiveInputTranscript(browserText || 'Transcribing your answer...');
+    setLiveInputTranscript(currentUserTextRef.current.trim() || 'Processing your answer...');
 
-    try {
-      const blob = new Blob(recordingChunksRef.current, {
-        type: recordingChunksRef.current[0]?.type || 'audio/webm',
-      });
-
-      if (blob.size < 800) {
-        setLiveInputTranscript('');
-        processingRef.current = false;
-        startRecording();
-        return;
-      }
-
-      const transcript = browserText || await withTimeout(
-        transcribeInterviewAnswer({
-          language,
-          audio: {
-            mimeType: blob.type || 'audio/webm',
-            data: await blobToBase64(blob),
-          },
-        }),
-        TRANSCRIPTION_TIMEOUT_MS,
-        'Transcription timed out.',
-      );
-
-      const answerText = transcript.trim();
-      if (!answerText) {
-        setLiveInputTranscript('');
-        processingRef.current = false;
-        startRecording();
-        return;
-      }
-
-      const nextTranscripts = [...transcriptsRef.current, { role: 'user' as const, text: answerText }];
-      transcriptsRef.current = nextTranscripts;
-      setTranscripts(nextTranscripts);
-      setLiveInputTranscript('');
-      processingRef.current = false;
-      await askNextQuestion(nextTranscripts);
-    } catch (error) {
-      console.error(error);
-      processingRef.current = false;
-      const fallbackText = browserText.trim();
-      if (fallbackText) {
-        const nextTranscripts = [...transcriptsRef.current, { role: 'user' as const, text: fallbackText }];
-        transcriptsRef.current = nextTranscripts;
-        setTranscripts(nextTranscripts);
-        setLiveInputTranscript('');
-        await askNextQuestion(nextTranscripts);
-        return;
-      }
-      setLiveInputTranscript('');
-      setIsError(true);
-      setErrorMessage('Could not process that answer. Please try speaking again, then tap Done Answering.');
-      startRecording();
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        realtimeInput: {
+          audioStreamEnd: true,
+        },
+      }));
     }
   };
 
   const stopAndFeedback = async () => {
     stoppedForFeedbackRef.current = true;
+    const userText = currentUserTextRef.current.trim();
+    if (userText) appendTranscript({ role: 'user', text: userText });
     const completeTranscripts = [...transcriptsRef.current];
     cleanupSession();
     setStage('processing_feedback');
@@ -413,7 +441,7 @@ const LiveInterview: React.FC = () => {
           {stage === 'setup' && (
             <div className="max-w-md mx-auto space-y-6 animate-fade-in">
               <div className="bg-sky-500/10 border border-sky-500/20 rounded-2xl p-5 text-sm text-slate-200">
-                <p>For best results — use headphones, sit in a quiet room, and speak clearly. This feature works best on Chrome browser.</p>
+                <p>For best results - use headphones, sit in a quiet room, and speak clearly. This feature works best on Chrome browser.</p>
               </div>
               <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-5 text-sm text-slate-200">
                 <p className="font-bold text-brand-300 mb-1">Warm-up</p>
@@ -435,7 +463,8 @@ const LiveInterview: React.FC = () => {
                   <select
                     value={language}
                     onChange={e => setLanguage(e.target.value)}
-                    className="w-full bg-navy-900/50 border border-slate-600 rounded-xl p-4 outline-none focus:ring-2 focus:ring-brand-500 transition-all appearance-none"
+                    disabled={stage !== 'setup'}
+                    className="w-full bg-navy-900/50 border border-slate-600 rounded-xl p-4 outline-none focus:ring-2 focus:ring-brand-500 transition-all appearance-none disabled:opacity-60"
                   >
                     {LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
                   </select>
@@ -476,7 +505,7 @@ const LiveInterview: React.FC = () => {
                 <div className="w-20 h-20 border-4 border-brand-500/20 rounded-full"></div>
                 <div className="w-20 h-20 border-4 border-brand-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
               </div>
-              <p className="text-brand-400 font-medium animate-pulse">Starting interview...</p>
+              <p className="text-brand-400 font-medium animate-pulse">Starting Gemini Live audio...</p>
             </div>
           )}
 
@@ -505,13 +534,17 @@ const LiveInterview: React.FC = () => {
                   <p className="text-xl font-medium leading-relaxed italic text-slate-200">
                     {currentQuestion ? `"${currentQuestion}"` : 'Preparing your first question...'}
                   </p>
+                  <p className="text-[11px] text-slate-500 mt-4">
+                    Gemini Live voice: {LIVE_VOICE_NAME} | Language: {sessionLanguage}
+                  </p>
                 </div>
 
                 <button
                   onClick={finishAnswer}
-                  className="w-full py-4 bg-brand-500 hover:bg-brand-600 rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3"
+                  disabled={status !== 'listening'}
+                  className="w-full py-4 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-600 disabled:cursor-not-allowed rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3"
                 >
-                  <i className="fas fa-paper-plane"></i> {status === 'speaking' ? 'Start Answering' : status === 'processing' ? 'Processing...' : "I'm Done Answering"}
+                  <i className="fas fa-paper-plane"></i> {status === 'processing' ? 'Processing...' : status === 'speaking' ? 'Sarah is speaking...' : "I'm Done Answering"}
                 </button>
 
                 <button onClick={stopAndFeedback} className="w-full py-5 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-2xl font-bold mt-4 transition-all flex items-center justify-center gap-3">
