@@ -49,13 +49,11 @@ function buildGeminiSetup(jobRole: string, language: string) {
   return {
     setup: {
       model: `models/${LIVE_MODEL}`,
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: LIVE_VOICE_NAME,
-            },
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: LIVE_VOICE_NAME,
           },
         },
       },
@@ -209,13 +207,16 @@ Deno.serve(async (req) => {
   };
 
   gemini.onerror = (event) => {
-    logError("Gemini live relay error", event, requestId);
+    logError("Gemini Live WebSocket error", event, requestId);
     closeBoth(1011, "Gemini live relay error.");
   };
 
   socket.onerror = () => closeBoth(1011, "Client WebSocket error.");
-  socket.onclose = () => closeBoth();
-  gemini.onclose = () => closeBoth();
+  socket.onclose = (event) => closeBoth(event.code || 1000, event.reason || "Client WebSocket closed.");
+  gemini.onclose = (event) => {
+    logError("Gemini Live WebSocket closed", { code: event.code, reason: event.reason, wasClean: event.wasClean }, requestId);
+    closeBoth(event.code || 1011, event.reason || "Gemini Live WebSocket closed.");
+  };
 
   const persistEnd = async () => {
     if (persisted) return;
