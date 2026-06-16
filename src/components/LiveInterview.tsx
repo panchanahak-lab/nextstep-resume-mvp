@@ -79,6 +79,26 @@ const LANGUAGES = [
   'Urdu',
 ];
 
+const LANGUAGE_CODES: Record<string, string> = {
+  English: 'en-IN',
+  Hindi: 'hi-IN',
+  Gujarati: 'gu-IN',
+  Marathi: 'mr-IN',
+  Bhojpuri: 'hi-IN',
+  Tamil: 'ta-IN',
+  Telugu: 'te-IN',
+  Bengali: 'bn-IN',
+  Odia: 'or-IN',
+  Malayalam: 'ml-IN',
+  Kannada: 'kn-IN',
+  Assamese: 'as-IN',
+  Nepali: 'ne-NP',
+  Punjabi: 'pa-IN',
+  Sindhi: 'sd-IN',
+  Kashmiri: 'ks-IN',
+  Urdu: 'ur-IN',
+};
+
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
 
 const LiveInterview: React.FC = () => {
@@ -93,6 +113,7 @@ const LiveInterview: React.FC = () => {
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const [liveInputTranscript, setLiveInputTranscript] = useState('');
   const [liveOutputTranscript, setLiveOutputTranscript] = useState('');
+  const [isAnswerEnding, setIsAnswerEnding] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -111,6 +132,11 @@ const LiveInterview: React.FC = () => {
 
   const currentInputTransRef = useRef<string>('');
   const currentOutputTransRef = useRef<string>('');
+  const browserSpeechFinalRef = useRef<string>('');
+  const browserSpeechInterimRef = useRef<string>('');
+  const browserSpeechSupportedRef = useRef(false);
+  const recognitionRef = useRef<any>(null);
+  const recognitionActiveRef = useRef(false);
 
   const displayedTranscripts = [
     ...transcripts,
@@ -133,6 +159,77 @@ const LiveInterview: React.FC = () => {
     return complete.filter(t => t.text.trim());
   };
 
+  const updateUserTranscript = (text: string) => {
+    currentInputTransRef.current = text;
+    setLiveInputTranscript(text);
+  };
+
+  const resetBrowserSpeechTurn = () => {
+    browserSpeechFinalRef.current = '';
+    browserSpeechInterimRef.current = '';
+  };
+
+  const stopBrowserSpeechRecognition = () => {
+    recognitionActiveRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+      recognitionRef.current = null;
+    }
+  };
+
+  const startBrowserSpeechRecognition = () => {
+    stopBrowserSpeechRecognition();
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      browserSpeechSupportedRef.current = false;
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    browserSpeechSupportedRef.current = true;
+    recognitionActiveRef.current = true;
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = LANGUAGE_CODES[language] || 'en-IN';
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i]?.[0]?.transcript || '';
+        if (event.results[i].isFinal) {
+          browserSpeechFinalRef.current += `${text} `;
+        } else {
+          interim += text;
+        }
+      }
+
+      browserSpeechInterimRef.current = interim;
+      const combined = `${browserSpeechFinalRef.current}${interim}`.trim();
+      if (combined) updateUserTranscript(combined);
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event?.error === 'not-allowed' || event?.error === 'language-not-supported') {
+        browserSpeechSupportedRef.current = false;
+        recognitionActiveRef.current = false;
+      }
+    };
+
+    recognition.onend = () => {
+      if (!recognitionActiveRef.current || sessionRef.current?.readyState !== WebSocket.OPEN) return;
+      window.setTimeout(() => {
+        try { recognition.start(); } catch (e) {}
+      }, 250);
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      browserSpeechSupportedRef.current = false;
+    }
+  };
+
   useEffect(() => {
     if (stage !== 'interview') return;
     transcriptScrollRef.current?.scrollTo({
@@ -142,12 +239,14 @@ const LiveInterview: React.FC = () => {
   }, [stage, transcripts, liveInputTranscript, liveOutputTranscript]);
 
   const cleanupAudio = () => {
+    stopBrowserSpeechRecognition();
     sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) {} });
     sourcesRef.current.clear();
     setLiveInputTranscript('');
     setLiveOutputTranscript('');
     currentInputTransRef.current = '';
     currentOutputTransRef.current = '';
+    resetBrowserSpeechTurn();
     if (scriptProcessorRef.current) {
       try { scriptProcessorRef.current.disconnect(); } catch (e) {}
       scriptProcessorRef.current.onaudioprocess = null;
@@ -238,6 +337,8 @@ const LiveInterview: React.FC = () => {
       relaySocket.onopen = () => {
         setIsConnected(true);
         setStage('interview');
+        resetBrowserSpeechTurn();
+        startBrowserSpeechRecognition();
         const source = inputCtx.createMediaStreamSource(stream);
         const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
         const mutedOutput = inputCtx.createGain();
@@ -284,7 +385,7 @@ const LiveInterview: React.FC = () => {
           return;
         }
 
-        if (msg.serverContent?.inputTranscription?.text) {
+        if (msg.serverContent?.inputTranscription?.text && !browserSpeechFinalRef.current.trim() && !browserSpeechInterimRef.current.trim()) {
           currentInputTransRef.current += msg.serverContent.inputTranscription.text;
           setLiveInputTranscript(currentInputTransRef.current);
         }
@@ -305,8 +406,10 @@ const LiveInterview: React.FC = () => {
           }
           currentInputTransRef.current = '';
           currentOutputTransRef.current = '';
+          resetBrowserSpeechTurn();
           setLiveInputTranscript('');
           setLiveOutputTranscript('');
+          setIsAnswerEnding(false);
         }
 
         const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -339,6 +442,15 @@ const LiveInterview: React.FC = () => {
       setIsError(true);
       setErrorMessage(err.name === 'NotAllowedError' ? "Microphone access denied. Please check your browser settings." : "Failed to initialize the interview. Please try again.");
     }
+  };
+
+  const finishAnswer = () => {
+    const socket = sessionRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+    setIsAnswerEnding(true);
+    socket.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+    window.setTimeout(() => setIsAnswerEnding(false), 1500);
   };
 
   const stopAndFeedback = async () => {
@@ -464,7 +576,15 @@ const LiveInterview: React.FC = () => {
                   </p>
                 </div>
 
-                <button onClick={stopAndFeedback} className="w-full py-5 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3">
+                <button
+                  onClick={finishAnswer}
+                  disabled={!isConnected || isAnswerEnding}
+                  className="w-full py-4 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed rounded-2xl font-bold mt-6 transition-all flex items-center justify-center gap-3"
+                >
+                  <i className="fas fa-paper-plane"></i> {isAnswerEnding ? 'Sending Answer...' : "I'm Done Answering"}
+                </button>
+
+                <button onClick={stopAndFeedback} className="w-full py-5 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-2xl font-bold mt-4 transition-all flex items-center justify-center gap-3">
                   <i className="fas fa-stop-circle"></i> End Session & Get Feedback
                 </button>
               </div>
