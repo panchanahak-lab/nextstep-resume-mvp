@@ -49,7 +49,6 @@ function buildGeminiSetup(jobRole: string, language: string) {
           },
         },
       },
-      inputAudioTranscription: {},
       outputAudioTranscription: {},
       realtimeInputConfig: {
         automaticActivityDetection: {
