@@ -59,7 +59,25 @@ async function pcmToAudioBuffer(
   return buffer;
 }
 
-const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Marathi', 'Tamil', 'Telugu', 'Gujarati', 'Kannada', 'Spanish', 'French', 'German'];
+const LANGUAGES = [
+  'English',
+  'Hindi',
+  'Gujarati',
+  'Marathi',
+  'Bhojpuri',
+  'Tamil',
+  'Telugu',
+  'Bengali',
+  'Odia',
+  'Malayalam',
+  'Kannada',
+  'Assamese',
+  'Nepali',
+  'Punjabi',
+  'Sindhi',
+  'Kashmiri',
+  'Urdu',
+];
 
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
 
