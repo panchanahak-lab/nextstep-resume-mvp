@@ -50,6 +50,9 @@ const LANGUAGE_CODES: Record<string, string> = {
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
 type InterviewStatus = 'speaking' | 'listening' | 'processing' | 'ready';
 
+const TRANSCRIPTION_TIMEOUT_MS = 12000;
+const FEMALE_VOICE_HINTS = ['female', 'zira', 'susan', 'heera', 'kalpana', 'google'];
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -60,6 +63,36 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then(value => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(error => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function getPreferredVoice(language: string) {
+  const languageCode = LANGUAGE_CODES[language] || 'en-IN';
+  const shortCode = languageCode.split('-')[0].toLowerCase();
+  const voices = window.speechSynthesis.getVoices();
+  const matching = voices.filter(voice => {
+    const voiceLang = voice.lang.toLowerCase();
+    return voiceLang === languageCode.toLowerCase() || voiceLang.startsWith(`${shortCode}-`);
+  });
+  const female = matching.find(voice =>
+    FEMALE_VOICE_HINTS.some(hint => voice.name.toLowerCase().includes(hint)),
+  );
+
+  return female || matching[0] || null;
 }
 
 const LiveInterview: React.FC = () => {
@@ -81,6 +114,10 @@ const LiveInterview: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const transcriptsRef = useRef<TranscriptItem[]>([]);
+  const browserSpeechFinalRef = useRef('');
+  const browserSpeechInterimRef = useRef('');
+  const recognitionRef = useRef<any>(null);
+  const recognitionActiveRef = useRef(false);
   const processingRef = useRef(false);
   const stoppedForFeedbackRef = useRef(false);
 
@@ -103,6 +140,7 @@ const LiveInterview: React.FC = () => {
 
   const cleanupSession = () => {
     window.speechSynthesis.cancel();
+    stopBrowserSpeechRecognition();
     if (mediaRecorderRef.current?.state === 'recording') {
       try { mediaRecorderRef.current.stop(); } catch (e) {}
     }
@@ -115,6 +153,55 @@ const LiveInterview: React.FC = () => {
     setStatus('ready');
   };
 
+  const stopBrowserSpeechRecognition = () => {
+    recognitionActiveRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+      recognitionRef.current = null;
+    }
+  };
+
+  const startBrowserSpeechRecognition = () => {
+    stopBrowserSpeechRecognition();
+    browserSpeechFinalRef.current = '';
+    browserSpeechInterimRef.current = '';
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognitionActiveRef.current = true;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = LANGUAGE_CODES[language] || 'en-IN';
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i]?.[0]?.transcript || '';
+        if (event.results[i].isFinal) {
+          browserSpeechFinalRef.current += `${text} `;
+        } else {
+          interim += text;
+        }
+      }
+
+      browserSpeechInterimRef.current = interim;
+      const combined = `${browserSpeechFinalRef.current}${interim}`.trim();
+      if (combined) setLiveInputTranscript(combined);
+    };
+
+    recognition.onend = () => {
+      if (!recognitionActiveRef.current || stoppedForFeedbackRef.current) return;
+      window.setTimeout(() => {
+        try { recognition.start(); } catch (e) {}
+      }, 250);
+    };
+
+    try { recognition.start(); } catch (e) {}
+  };
+
   const speakQuestion = (question: string) => {
     window.speechSynthesis.cancel();
     setStatus('speaking');
@@ -122,6 +209,8 @@ const LiveInterview: React.FC = () => {
 
     const utterance = new SpeechSynthesisUtterance(question);
     utterance.lang = LANGUAGE_CODES[language] || 'en-IN';
+    const preferredVoice = getPreferredVoice(language);
+    if (preferredVoice) utterance.voice = preferredVoice;
     utterance.rate = 0.92;
     utterance.pitch = 1;
 
@@ -204,16 +293,19 @@ const LiveInterview: React.FC = () => {
     };
 
     recorder.start();
-    setLiveInputTranscript('Recording your answer...');
+    startBrowserSpeechRecognition();
+    setLiveInputTranscript('Listening...');
     setStatus('listening');
   };
 
   const finishAnswer = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder?.state === 'recording') {
+      stopBrowserSpeechRecognition();
       recorder.stop();
       setStatus('processing');
-      setLiveInputTranscript('Processing your answer...');
+      const browserText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
+      setLiveInputTranscript(browserText || 'Processing your answer...');
       return;
     }
 
@@ -227,7 +319,8 @@ const LiveInterview: React.FC = () => {
     if (processingRef.current) return;
     processingRef.current = true;
     setStatus('processing');
-    setLiveInputTranscript('Transcribing your answer...');
+    const browserText = `${browserSpeechFinalRef.current}${browserSpeechInterimRef.current}`.trim();
+    setLiveInputTranscript(browserText || 'Transcribing your answer...');
 
     try {
       const blob = new Blob(recordingChunksRef.current, {
@@ -241,13 +334,17 @@ const LiveInterview: React.FC = () => {
         return;
       }
 
-      const transcript = await transcribeInterviewAnswer({
-        language,
-        audio: {
-          mimeType: blob.type || 'audio/webm',
-          data: await blobToBase64(blob),
-        },
-      });
+      const transcript = browserText || await withTimeout(
+        transcribeInterviewAnswer({
+          language,
+          audio: {
+            mimeType: blob.type || 'audio/webm',
+            data: await blobToBase64(blob),
+          },
+        }),
+        TRANSCRIPTION_TIMEOUT_MS,
+        'Transcription timed out.',
+      );
 
       const answerText = transcript.trim();
       if (!answerText) {
@@ -266,6 +363,15 @@ const LiveInterview: React.FC = () => {
     } catch (error) {
       console.error(error);
       processingRef.current = false;
+      const fallbackText = browserText.trim();
+      if (fallbackText) {
+        const nextTranscripts = [...transcriptsRef.current, { role: 'user' as const, text: fallbackText }];
+        transcriptsRef.current = nextTranscripts;
+        setTranscripts(nextTranscripts);
+        setLiveInputTranscript('');
+        await askNextQuestion(nextTranscripts);
+        return;
+      }
       setLiveInputTranscript('');
       setIsError(true);
       setErrorMessage('Could not process that answer. Please try speaking again, then tap Done Answering.');
