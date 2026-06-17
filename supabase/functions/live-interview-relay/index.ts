@@ -1,7 +1,7 @@
 import { logError } from "../_shared/cors.ts";
 import { getServiceClient } from "../_shared/supabase.ts";
 
-const LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
+const LIVE_MODEL = "gemini-3.1-flash-live-preview";
 const LIVE_VOICE_NAME = "Kore";
 const MAX_SESSION_MS = 10 * 60 * 1000;
 
@@ -139,6 +139,16 @@ Deno.serve(async (req) => {
     }
   };
 
+  const notifyClientError = (message: string) => {
+    try {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ error: { message } }));
+      }
+    } catch (_) {
+      // no-op
+    }
+  };
+
   const timeout = setTimeout(() => closeBoth(1000, "Maximum interview length reached."), MAX_SESSION_MS);
 
   const flushPendingClientMessages = () => {
@@ -208,6 +218,7 @@ Deno.serve(async (req) => {
 
   gemini.onerror = (event) => {
     logError("Gemini Live WebSocket error", event, requestId);
+    notifyClientError("Gemini Live rejected the audio session. Please try again.");
     closeBoth(1011, "Gemini live relay error.");
   };
 
@@ -215,6 +226,7 @@ Deno.serve(async (req) => {
   socket.onclose = (event) => closeBoth(event.code || 1000, event.reason || "Client WebSocket closed.");
   gemini.onclose = (event) => {
     logError("Gemini Live WebSocket closed", { code: event.code, reason: event.reason, wasClean: event.wasClean }, requestId);
+    notifyClientError(event.reason || "Gemini Live closed the audio session.");
     closeBoth(event.code || 1011, event.reason || "Gemini Live WebSocket closed.");
   };
 
