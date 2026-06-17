@@ -39,9 +39,9 @@ const Navbar: React.FC = () => {
             </button>
             <button 
               onClick={() => openAuth('signup')}
-              className="text-sm font-medium bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-sm"
+              className="bg-blue-600 text-white px-5 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors shadow-sm"
             >
-              Start Free
+              Get Started
             </button>
           </div>
 
@@ -75,7 +75,7 @@ const Navbar: React.FC = () => {
                 onClick={() => openAuth('signup')}
                 className="w-full text-sm font-medium bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors text-center"
               >
-                Start Free
+                Get Started
               </button>
             </div>
           </div>

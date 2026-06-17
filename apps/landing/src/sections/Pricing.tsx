@@ -7,13 +7,14 @@ const Pricing: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Simple, transparent pricing</h2>
-          <p className="text-lg text-gray-600">No hidden charges. UPI-friendly payments. Cancel anytime.</p>
+          <p className="text-lg text-gray-600 mb-6">Create an account first. Your first ATS scan is included after signup.</p>
+          <p className="text-sm text-gray-500 font-medium">More scans and interviews are available through plans or pay-per-use. Cancel anytime.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {/* Free Plan */}
+          {/* Account Required Plan */}
           <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 flex flex-col">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Free</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Account Required</h3>
             <p className="text-gray-500 text-sm mb-6">Perfect to get started</p>
             <div className="mb-6">
               <span className="text-4xl font-extrabold text-gray-900">₹0</span>
@@ -23,14 +24,14 @@ const Pricing: React.FC = () => {
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> 1 resume
               </li>
               <li className="flex items-start gap-3 text-gray-600">
-                <Check className="w-5 h-5 text-blue-500 shrink-0" /> Basic ATS scan
+                <Check className="w-5 h-5 text-blue-500 shrink-0" /> Included ATS scan for new users
               </li>
               <li className="flex items-start gap-3 text-gray-600">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Limited text interview
               </li>
             </ul>
             <button className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors">
-              Start Free
+              Create Account
             </button>
           </div>
 
@@ -84,7 +85,7 @@ const Pricing: React.FC = () => {
               </li>
             </ul>
             <button className="w-full py-3 rounded-xl font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-lg">
-              Go Pro
+              Choose Plan
             </button>
           </div>
         </div>

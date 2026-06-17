@@ -27,7 +27,7 @@ const ResumeBuilderSection: React.FC = () => {
             </div>
 
             <button className="flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
-              Create Resume
+              Create Account to Build Resume
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>

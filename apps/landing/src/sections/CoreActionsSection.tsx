@@ -9,7 +9,7 @@ const actions = [
     icon: FileText,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
-    cta: 'Build Resume',
+    cta: 'Create an account to build and save your resume.',
     href: '#builder',
   },
   {
@@ -18,7 +18,8 @@ const actions = [
     icon: ScanSearch,
     color: 'text-green-600',
     bg: 'bg-green-50',
-    cta: 'Scan My Resume',
+    cta: 'Create an account to unlock your first included CV scan.',
+    helperLine: 'First-time users get 1 ATS scan included after signup.',
     href: '#scan',
   },
   {
@@ -27,7 +28,7 @@ const actions = [
     icon: UserSquare2,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
-    cta: 'Start Interview',
+    cta: 'Create an account to practice interviews and save your results.',
     href: '#interview',
   },
 ];
@@ -44,9 +45,14 @@ const CoreActionsSection: React.FC = () => {
                 <Icon className={`w-7 h-7 ${action.color}`} />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{action.title}</h3>
-              <p className="text-gray-600 mb-8 leading-relaxed">
+              <p className="text-gray-600 mb-6 leading-relaxed flex-1">
                 {action.description}
               </p>
+              {action.helperLine && (
+                <p className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg mb-6 self-start border border-green-100">
+                  {action.helperLine}
+                </p>
+              )}
               <a href={action.href} className={`inline-flex items-center gap-2 font-semibold ${action.color} hover:gap-3 transition-all`}>
                 {action.cta}
                 <ArrowRight className="w-4 h-4" />

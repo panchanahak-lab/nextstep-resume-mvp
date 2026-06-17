@@ -32,7 +32,7 @@ const LiveInterviewSection: React.FC = () => {
 
               <div className="relative z-10">
                 <button className="w-full bg-white text-purple-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors shadow-lg flex items-center justify-center gap-2">
-                  Start Live Interview <ArrowRight className="w-5 h-5" />
+                  Create Account to Start Interview <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
             </div>

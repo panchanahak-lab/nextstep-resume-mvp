@@ -15,31 +15,26 @@ const Hero: React.FC = () => {
             Built for Indian job seekers across industries
           </div>
 
-          <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight tracking-tight mb-6">
-            From blank page to <span className="text-blue-600">job-ready resume</span> — in minutes.
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
+            Build a Job-Ready Resume and <span className="text-blue-600">Prepare with AI</span>
           </h1>
-
-          <p className="text-lg lg:text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0">
+          <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
             Create resumes, scan ATS readiness, and practice live AI interviews in your preferred language.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
+          <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-8">
             <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
-              Start Free
+              Create Account
               <ArrowRight className="w-5 h-5" />
             </button>
-            <a href="#how-it-works" className="w-full sm:w-auto flex items-center justify-center px-8 py-4 rounded-full font-semibold text-gray-700 hover:bg-gray-100 transition-all">
+            <button className="w-full sm:w-auto px-8 py-4 rounded-full font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm">
               See How It Works
-            </a>
+            </button>
           </div>
 
-          <div className="mt-10 flex items-center justify-center lg:justify-start gap-4 text-sm text-gray-500 font-medium">
-            <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-xs font-bold text-blue-700">A</div>
-              <div className="w-8 h-8 rounded-full bg-green-100 border-2 border-white flex items-center justify-center text-xs font-bold text-green-700">R</div>
-              <div className="w-8 h-8 rounded-full bg-purple-100 border-2 border-white flex items-center justify-center text-xs font-bold text-purple-700">P</div>
-            </div>
-            <p>Trusted by 10,000+ candidates</p>
+          <div className="flex items-center justify-center lg:justify-start gap-2 text-sm text-gray-500 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            Sign in to create resumes, unlock your first CV scan, and track your interview results.
           </div>
         </div>
 

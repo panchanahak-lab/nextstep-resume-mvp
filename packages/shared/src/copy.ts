@@ -101,14 +101,20 @@ export const COPY = {
   PROFILE: {
     headline: "Profile Settings",
     supportText: "Manage your personal details and preferences.",
-    referralTitle: "Your NextStep Referral Link",
-    referralDesc: "Share with friends and earn free ATS scans.",
-    whatsappShare: "Share via WhatsApp",
+    referralTitle: "Help your friends get hired too.",
+    referralDesc: "Share with friends and earn included ATS scans.",
+    whatsappBtn: "Share on WhatsApp",
     ctaSave: "Save Changes",
+  },
+  ATS_BANNER: {
+    badge: "Limited Time",
+    title: "Get your first ATS scan included",
+    helperText: "Share with friends and unlock included scans.",
+    primaryCta: "Scan My Resume Now",
   },
   SHARE: {
     cta: "Share on WhatsApp",
-    helperText: "Share with friends and unlock free scans.",
+    helperText: "Share with friends and unlock included scans.",
     successMessage: "Shared successfully. Thanks for helping others get job-ready.",
   },
   TRUST: {
@@ -145,6 +151,13 @@ export const COPY = {
     paymentVerification: "Confirming your payment...",
   },
   BUTTONS: {
+    PROTECTED_ACTIONS: {
+      createResume: "Create an account to build and save your resume.",
+      scanResume: "Create an account to unlock your first included CV scan.",
+      mockInterview: "Create an account to practice interviews and save your results.",
+      downloadResume: "Create an account to save and download your resume.",
+      jobMatch: "Create an account to check how well your resume matches a job.",
+    },
     RESUME: {
       build: "Build Resume",
       upload: "Upload Resume",

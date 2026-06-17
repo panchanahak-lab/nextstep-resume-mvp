@@ -59,21 +59,21 @@ const ATSScanSection: React.FC = () => {
 
           <div className="lg:w-1/2 order-1 lg:order-2">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight">
-              Find out if your resume will even reach a human.
+              Check If Your Resume Will Reach a Recruiter
             </h2>
             <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-              Most companies use software to filter resumes before anyone reads them.
+              Most companies use software to filter resumes before a human reads them. Scan your CV to see keyword gaps, formatting issues, and what to improve first.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
               <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
-                Check ATS Score
+                Create Account to Scan Your CV
                 <ArrowRight className="w-5 h-5" />
               </button>
-              <button className="w-full sm:w-auto px-8 py-4 rounded-full font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm">
-                Fix and Rescan
-              </button>
             </div>
+            <p className="text-sm font-semibold text-green-700 bg-green-50 border border-green-100 rounded-lg px-4 py-3 inline-block">
+              First-time users get 1 ATS scan included after signup.
+            </p>
           </div>
         </div>
       </div>
