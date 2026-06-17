@@ -9,7 +9,8 @@ const actions = [
     icon: FileText,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
-    cta: 'Create an account to build and save your resume.',
+    cta: 'Build Your Resume',
+    helperLine: 'Sign in to save and download your resume.',
     href: '#builder',
   },
   {
@@ -18,7 +19,7 @@ const actions = [
     icon: ScanSearch,
     color: 'text-green-600',
     bg: 'bg-green-50',
-    cta: 'Create an account to unlock your first included CV scan.',
+    cta: 'Scan Your CV',
     helperLine: 'First-time users get 1 ATS scan included after signup.',
     href: '#scan',
   },
@@ -28,7 +29,8 @@ const actions = [
     icon: UserSquare2,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
-    cta: 'Create an account to practice interviews and save your results.',
+    cta: 'Start Mock Interview',
+    helperLine: 'Sign in to practice and save your interview results.',
     href: '#interview',
   },
 ];
@@ -40,23 +42,26 @@ const CoreActionsSection: React.FC = () => {
         {actions.map((action, index) => {
           const Icon = action.icon;
           return (
-            <div key={index} className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
-              <div className={`w-14 h-14 ${action.bg} rounded-xl flex items-center justify-center mb-6`}>
+            <div key={index} className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
+              <div className={`w-14 h-14 ${action.bg} rounded-xl flex items-center justify-center mb-6 shrink-0`}>
                 <Icon className={`w-7 h-7 ${action.color}`} />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{action.title}</h3>
-              <p className="text-gray-600 mb-6 leading-relaxed flex-1">
+              <p className="text-gray-600 mb-8 leading-relaxed flex-1">
                 {action.description}
               </p>
-              {action.helperLine && (
-                <p className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg mb-6 self-start border border-green-100">
-                  {action.helperLine}
-                </p>
-              )}
-              <a href={action.href} className={`inline-flex items-center gap-2 font-semibold ${action.color} hover:gap-3 transition-all`}>
-                {action.cta}
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              
+              <div className="flex flex-col items-start gap-1.5 mt-auto">
+                <a href={action.href} className={`inline-flex items-center gap-2 font-bold text-lg ${action.color} hover:gap-3 transition-all`}>
+                  {action.cta}
+                  <ArrowRight className="w-5 h-5 shrink-0" />
+                </a>
+                {action.helperLine && (
+                  <p className="text-sm text-gray-500 font-medium">
+                    {action.helperLine}
+                  </p>
+                )}
+              </div>
             </div>
           );
         })}
