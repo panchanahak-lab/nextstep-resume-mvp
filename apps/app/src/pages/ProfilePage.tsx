@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Card from '../../../../packages/shared/src/components/Card';
 import ResumePreview from '../components/ResumePreview';
 import { mockUserProfile, mockResumeData } from '../data/mockData';
 import { COPY } from '@nextstep/shared';
 import Button from '../../../../packages/shared/src/components/Button';
+import { downloadResumePdf, PDF_MESSAGES } from '../utils/pdf/downloadResumePdf';
 
 const ProfilePage: React.FC = () => {
+  const [pdfMessage, setPdfMessage] = useState('');
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleDownloadResume = async () => {
+    setPdfStatus('loading');
+    setPdfMessage(PDF_MESSAGES.preparing);
+
+    const result = await downloadResumePdf(mockResumeData);
+
+    setPdfStatus(result.ok ? 'success' : 'error');
+    setPdfMessage(result.message);
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -86,7 +100,31 @@ const ProfilePage: React.FC = () => {
 
       {/* Resume */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">My Resume</h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">My Resume</h2>
+          <Button
+            variant="secondary"
+            onClick={handleDownloadResume}
+            disabled={pdfStatus === 'loading'}
+          >
+            {pdfStatus === 'loading' ? PDF_MESSAGES.preparing : COPY.BUTTONS.RESUME.download}
+          </Button>
+        </div>
+        {pdfMessage && (
+          <p
+            role="status"
+            aria-live="polite"
+            className={`mb-4 text-sm font-medium ${
+              pdfStatus === 'success'
+                ? 'text-green-600 dark:text-green-400'
+                : pdfStatus === 'error'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-primary-600 dark:text-primary-400'
+            }`}
+          >
+            {pdfMessage}
+          </p>
+        )}
         <ResumePreview data={mockResumeData} />
       </div>
     </div>

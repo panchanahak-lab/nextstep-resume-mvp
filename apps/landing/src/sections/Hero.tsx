@@ -1,8 +1,10 @@
 import React from 'react';
 import { ArrowRight, CheckCircle2, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const Hero: React.FC = () => {
+  const { startFree } = useAuthActions();
+
   return (
     <section id="hero" className="relative bg-white pt-24 pb-32 overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-30"></div>
@@ -24,7 +26,10 @@ const Hero: React.FC = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-            <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
+            <button
+              onClick={startFree}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200"
+            >
               Start Free
               <ArrowRight className="w-5 h-5" />
             </button>

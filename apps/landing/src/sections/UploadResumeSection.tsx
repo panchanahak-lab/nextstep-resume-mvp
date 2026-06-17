@@ -1,7 +1,11 @@
 import React from 'react';
 import { UploadCloud } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const UploadResumeSection: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section className="py-24 bg-white border-t border-gray-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -17,7 +21,10 @@ const UploadResumeSection: React.FC = () => {
           </p>
           
           <div className="flex flex-col items-center gap-4">
-            <button className="bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 w-full sm:w-auto">
+            <button
+              onClick={() => goToProtectedRoute(APP_ROUTES.scanner)}
+              className="bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 w-full sm:w-auto"
+            >
               Upload Resume
             </button>
             <p className="text-sm text-gray-500 font-medium">

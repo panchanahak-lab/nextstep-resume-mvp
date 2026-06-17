@@ -24,7 +24,7 @@ const faqs = [
   {
     question: 'Can I download my resume?',
     answer:
-      'Yes. You can download your resume as a professionally formatted PDF. (PDF generation coming soon)',
+      'Yes. You can download your resume as a professionally formatted PDF.',
   },
   {
     question: 'Is my data safe?',

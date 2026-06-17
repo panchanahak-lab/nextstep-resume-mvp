@@ -5,9 +5,22 @@ import Button from '../../../../packages/shared/src/components/Button';
 import ResumeForm from '../components/ResumeForm';
 import ResumePreview from '../components/ResumePreview';
 import { mockResumeData } from '../data/mockData';
+import { downloadResumePdf, PDF_MESSAGES } from '../utils/pdf/downloadResumePdf';
 
 const BuilderPage: React.FC = () => {
   const [resumeData, setResumeData] = useState<ResumeData>(mockResumeData);
+  const [pdfMessage, setPdfMessage] = useState('');
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleDownloadResume = async () => {
+    setPdfStatus('loading');
+    setPdfMessage(PDF_MESSAGES.preparing);
+
+    const result = await downloadResumePdf(resumeData);
+
+    setPdfStatus(result.ok ? 'success' : 'error');
+    setPdfMessage(result.message);
+  };
 
   return (
     <div>
@@ -37,11 +50,28 @@ const BuilderPage: React.FC = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => alert('TODO: Integrate PDF generation')}
+              onClick={handleDownloadResume}
+              disabled={pdfStatus === 'loading'}
             >
-              {COPY.BUTTONS.RESUME.download}
+              {pdfStatus === 'loading' ? PDF_MESSAGES.preparing : COPY.BUTTONS.RESUME.download}
             </Button>
           </div>
+
+          {pdfMessage && (
+            <p
+              role="status"
+              aria-live="polite"
+              className={`mt-3 text-sm font-medium ${
+                pdfStatus === 'success'
+                  ? 'text-green-600 dark:text-green-400'
+                  : pdfStatus === 'error'
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-primary-600 dark:text-primary-400'
+              }`}
+            >
+              {pdfMessage}
+            </p>
+          )}
         </div>
 
         {/* Right: Preview */}

@@ -1,7 +1,11 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const Pricing: React.FC = () => {
+  const { goToProtectedRoute, startFree } = useAuthActions();
+
   return (
     <section id="pricing" className="py-24 bg-gray-50 border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -29,7 +33,10 @@ const Pricing: React.FC = () => {
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Limited text interview
               </li>
             </ul>
-            <button className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors">
+            <button
+              onClick={startFree}
+              className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors"
+            >
               Start Free
             </button>
           </div>
@@ -56,7 +63,10 @@ const Pricing: React.FC = () => {
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> One live voice interview
               </li>
             </ul>
-            <button className="w-full py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
+            <button
+              onClick={() => goToProtectedRoute(APP_ROUTES.dashboard, 'signup')}
+              className="w-full py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+            >
               Pay As You Need
             </button>
           </div>
@@ -83,7 +93,10 @@ const Pricing: React.FC = () => {
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Saved history
               </li>
             </ul>
-            <button className="w-full py-3 rounded-xl font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-lg">
+            <button
+              onClick={() => goToProtectedRoute(APP_ROUTES.dashboard, 'signup')}
+              className="w-full py-3 rounded-xl font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-lg"
+            >
               Go Pro
             </button>
           </div>
