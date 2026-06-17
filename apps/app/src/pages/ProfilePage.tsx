@@ -112,6 +112,8 @@ const ProfilePage: React.FC = () => {
         </div>
         {pdfMessage && (
           <p
+            role="status"
+            aria-live="polite"
             className={`mb-4 text-sm font-medium ${
               pdfStatus === 'success'
                 ? 'text-green-600 dark:text-green-400'

@@ -143,7 +143,7 @@ const ResumePDF: React.FC<{ data: ResumeData }> = ({ data }) => {
         {validExperience.length > 0 && (
           <TextSection title="Work Experience">
             {validExperience.map((experience, index) => (
-              <PdfView key={`${experience.company}-${index}`} style={styles.item} wrap={false}>
+              <PdfView key={`${experience.company}-${index}`} style={styles.item}>
                 <PdfText style={styles.itemHeader}>
                   {[experience.jobTitle, experience.company].filter(hasText).join(' - ')}
                 </PdfText>
@@ -161,7 +161,7 @@ const ResumePDF: React.FC<{ data: ResumeData }> = ({ data }) => {
         {validEducation.length > 0 && (
           <TextSection title="Education">
             {validEducation.map((education, index) => (
-              <PdfView key={`${education.institute}-${index}`} style={styles.item} wrap={false}>
+              <PdfView key={`${education.institute}-${index}`} style={styles.item}>
                 <PdfText style={styles.itemHeader}>{education.degree.trim()}</PdfText>
                 <PdfText style={styles.itemMeta}>
                   {[education.institute, education.year].filter(hasText).join(' - ')}
@@ -180,7 +180,7 @@ const ResumePDF: React.FC<{ data: ResumeData }> = ({ data }) => {
         {validProjects.length > 0 && (
           <TextSection title="Projects">
             {validProjects.map((project, index) => (
-              <PdfView key={`${project.name}-${index}`} style={styles.item} wrap={false}>
+              <PdfView key={`${project.name}-${index}`} style={styles.item}>
                 {hasText(project.name) && <PdfText style={styles.itemHeader}>{project.name.trim()}</PdfText>}
                 {hasText(project.description) && <BulletList items={splitLines(project.description)} />}
                 {hasText(project.tools) && <PdfText style={styles.itemMeta}>Tools: {project.tools.trim()}</PdfText>}

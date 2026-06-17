@@ -59,6 +59,8 @@ const BuilderPage: React.FC = () => {
 
           {pdfMessage && (
             <p
+              role="status"
+              aria-live="polite"
               className={`mt-3 text-sm font-medium ${
                 pdfStatus === 'success'
                   ? 'text-green-600 dark:text-green-400'
