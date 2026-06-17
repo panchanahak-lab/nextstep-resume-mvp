@@ -122,11 +122,18 @@ Deno.serve(async (req) => {
   let closed = false;
   let persisted = false;
   let geminiSetupComplete = false;
+  let closeCode = 1000;
+  let closeReason = "Session ended";
+  let closeSource = "relay";
   const pendingClientMessages: string[] = [];
 
-  const closeBoth = (code = 1000, reason = "Session ended") => {
+  const closeBoth = (code = 1000, reason = "Session ended", source = "relay") => {
     if (closed) return;
     closed = true;
+    closeCode = code;
+    closeReason = reason;
+    closeSource = source;
+    void persistEnd();
     try {
       if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
     } catch (_) {
@@ -192,6 +199,18 @@ Deno.serve(async (req) => {
     const payload = await normalizeSocketData(event.data);
     inputBytes += new TextEncoder().encode(payload).length;
 
+    try {
+      const message = JSON.parse(payload);
+      if (message?.relayControl?.type === "ping") {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ relayControl: { type: "pong", at: Date.now() } }));
+        }
+        return;
+      }
+    } catch (_) {
+      // Non-JSON payloads continue through the normal Gemini relay path.
+    }
+
     if (gemini.readyState === WebSocket.OPEN && geminiSetupComplete) {
       gemini.send(payload);
     } else {
@@ -221,15 +240,15 @@ Deno.serve(async (req) => {
   gemini.onerror = (event) => {
     logError("Gemini Live WebSocket error", event, requestId);
     notifyClientError("Gemini Live rejected the audio session. Please try again.");
-    closeBoth(1011, "Gemini live relay error.");
+    closeBoth(1011, "Gemini live relay error.", "gemini-error");
   };
 
-  socket.onerror = () => closeBoth(1011, "Client WebSocket error.");
-  socket.onclose = (event) => closeBoth(event.code || 1000, event.reason || "Client WebSocket closed.");
+  socket.onerror = () => closeBoth(1011, "Client WebSocket error.", "client-error");
+  socket.onclose = (event) => closeBoth(event.code || 1000, event.reason || "Client WebSocket closed.", "client-close");
   gemini.onclose = (event) => {
     logError("Gemini Live WebSocket closed", { code: event.code, reason: event.reason, wasClean: event.wasClean }, requestId);
     notifyClientError(event.reason || "Gemini Live closed the audio session.");
-    closeBoth(event.code || 1011, event.reason || "Gemini Live WebSocket closed.");
+    closeBoth(event.code || 1011, event.reason || "Gemini Live WebSocket closed.", "gemini-close");
   };
 
   const persistEnd = async () => {
@@ -247,6 +266,7 @@ Deno.serve(async (req) => {
           duration_seconds: durationSeconds,
           input_bytes: inputBytes,
           output_bytes: outputBytes,
+          metadata: { jobRole, language, closeCode, closeReason, closeSource },
         })
         .eq("id", sessionId);
 
@@ -264,7 +284,7 @@ Deno.serve(async (req) => {
       p_input_bytes: inputBytes,
       p_output_bytes: outputBytes,
       p_estimated_cost_usd: null,
-      p_metadata: { sessionId, durationSeconds, jobRole, language },
+      p_metadata: { sessionId, durationSeconds, jobRole, language, closeCode, closeReason, closeSource },
     });
 
     if (error) {

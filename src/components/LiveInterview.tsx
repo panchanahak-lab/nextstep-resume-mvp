@@ -31,6 +31,8 @@ const LIVE_VOICE_NAME = 'Kore';
 const INPUT_AUDIO_MIME_TYPE = 'audio/pcm;rate=16000';
 const OUTPUT_AUDIO_SAMPLE_RATE = 24000;
 const INPUT_AUDIO_SAMPLE_RATE = 16000;
+const MAX_SOCKET_BUFFER_BYTES = 512 * 1024;
+const RELAY_HEARTBEAT_MS = 10000;
 
 type SessionStage = 'setup' | 'initializing' | 'interview' | 'processing_feedback' | 'feedback';
 type InterviewStatus = 'speaking' | 'listening' | 'processing' | 'ready' | 'connecting';
@@ -125,6 +127,9 @@ const LiveInterview: React.FC = () => {
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const inputMuteRef = useRef<GainNode | null>(null);
+  const heartbeatIntervalRef = useRef<number | null>(null);
+  const pendingListenTimerRef = useRef<number | null>(null);
   const nextPlaybackTimeRef = useRef(0);
   const transcriptsRef = useRef<TranscriptItem[]>([]);
   const currentAiTextRef = useRef('');
@@ -176,17 +181,41 @@ const LiveInterview: React.FC = () => {
     setTranscripts(updated);
   };
 
+  const stopRelayHeartbeat = () => {
+    if (heartbeatIntervalRef.current) {
+      window.clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+  };
+
+  const startRelayHeartbeat = () => {
+    stopRelayHeartbeat();
+    heartbeatIntervalRef.current = window.setInterval(() => {
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ relayControl: { type: 'ping', at: Date.now() } }));
+      }
+    }, RELAY_HEARTBEAT_MS);
+  };
+
   const stopMicrophoneStreaming = () => {
     streamingActiveRef.current = false;
     processorRef.current?.disconnect();
     processorRef.current = null;
     sourceRef.current?.disconnect();
     sourceRef.current = null;
+    inputMuteRef.current?.disconnect();
+    inputMuteRef.current = null;
     inputAudioContextRef.current?.close().catch(() => {});
     inputAudioContextRef.current = null;
   };
 
   const cleanupSession = () => {
+    stopRelayHeartbeat();
+    if (pendingListenTimerRef.current) {
+      window.clearTimeout(pendingListenTimerRef.current);
+      pendingListenTimerRef.current = null;
+    }
     stopMicrophoneStreaming();
     socketRef.current?.close();
     socketRef.current = null;
@@ -240,12 +269,22 @@ const LiveInterview: React.FC = () => {
     const audioContext = new AudioContextClass();
     inputAudioContextRef.current = audioContext;
     const source = audioContext.createMediaStreamSource(stream);
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    const processor = audioContext.createScriptProcessor(8192, 1, 1);
+    const mute = audioContext.createGain();
+    mute.gain.value = 0;
     sourceRef.current = source;
     processorRef.current = processor;
+    inputMuteRef.current = mute;
 
     processor.onaudioprocess = event => {
       if (socket.readyState !== WebSocket.OPEN || !streamingActiveRef.current) return;
+      if (socket.bufferedAmount > MAX_SOCKET_BUFFER_BYTES) {
+        console.warn('[LiveInterview] Skipping microphone frame because socket buffer is high', {
+          bufferedAmount: socket.bufferedAmount,
+        });
+        return;
+      }
+
       const mono = event.inputBuffer.getChannelData(0);
       const pcmBase64 = floatToPcm16Base64(resampleTo16k(mono, audioContext.sampleRate));
       socket.send(JSON.stringify({
@@ -259,7 +298,8 @@ const LiveInterview: React.FC = () => {
     };
 
     source.connect(processor);
-    processor.connect(audioContext.destination);
+    processor.connect(mute);
+    mute.connect(audioContext.destination);
     streamingActiveRef.current = true;
     setLiveInputTranscript('Listening...');
     setStatus('listening');
@@ -286,6 +326,10 @@ const LiveInterview: React.FC = () => {
 
     if (message.error?.message) {
       setFatalLiveError(message.error.message);
+      return;
+    }
+
+    if (message.relayControl?.type === 'pong') {
       return;
     }
 
@@ -331,7 +375,7 @@ const LiveInterview: React.FC = () => {
       const playbackDelayMs = outputAudioContextRef.current
         ? Math.max(300, (nextPlaybackTimeRef.current - outputAudioContextRef.current.currentTime) * 1000 + 150)
         : 300;
-      window.setTimeout(beginListeningAfterGeminiTurn, playbackDelayMs);
+      pendingListenTimerRef.current = window.setTimeout(beginListeningAfterGeminiTurn, playbackDelayMs);
     }
   };
 
@@ -371,6 +415,7 @@ const LiveInterview: React.FC = () => {
       socket.onopen = () => {
         setStage('interview');
         setStatus('processing');
+        startRelayHeartbeat();
       };
 
       socket.onmessage = event => {
