@@ -1,7 +1,7 @@
 import { logError } from "../_shared/cors.ts";
 import { getServiceClient } from "../_shared/supabase.ts";
 
-const LIVE_MODEL = "gemini-3.1-flash-live-preview";
+const LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
 const LIVE_VOICE_NAME = "Kore";
 const MAX_SESSION_MS = 10 * 60 * 1000;
 
