@@ -1,12 +1,18 @@
 {
-  "name": "nextstep-resume",
+  "name": "nextstep-resume-mvp",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:landing": "npm run dev --workspace=apps/landing",
+    "dev:app": "npm run dev --workspace=apps/app",
+    "build:landing": "npm run build --workspace=apps/landing",
+    "build:app": "npm run build --workspace=apps/app"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
