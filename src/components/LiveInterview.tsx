@@ -133,6 +133,7 @@ const LiveInterview: React.FC = () => {
   const streamingActiveRef = useRef(false);
   const stoppedForFeedbackRef = useRef(false);
   const hasNativeAudioRef = useRef(false);
+  const liveErrorRef = useRef('');
 
   useEffect(() => {
     transcriptsRef.current = transcripts;
@@ -163,6 +164,7 @@ const LiveInterview: React.FC = () => {
   };
 
   const setFatalLiveError = (message: string) => {
+    liveErrorRef.current = message;
     setIsError(true);
     setErrorMessage(message);
     setStatus('ready');
@@ -196,6 +198,7 @@ const LiveInterview: React.FC = () => {
     currentAiTextRef.current = '';
     currentUserTextRef.current = '';
     hasNativeAudioRef.current = false;
+    liveErrorRef.current = '';
     setLiveInputTranscript('');
     setStatus('ready');
   };
@@ -346,6 +349,7 @@ const LiveInterview: React.FC = () => {
     setStatus('connecting');
     setIsError(false);
     setErrorMessage('');
+    liveErrorRef.current = '';
     setTranscripts([]);
     transcriptsRef.current = [];
     stoppedForFeedbackRef.current = false;
@@ -381,9 +385,10 @@ const LiveInterview: React.FC = () => {
 
       socket.onclose = event => {
         if (stoppedForFeedbackRef.current) return;
+        const existingError = liveErrorRef.current;
         cleanupSession();
         setStage('setup');
-        setFatalLiveError(event.reason || 'Gemini Live audio connection stopped. Please start a new session.');
+        setFatalLiveError(existingError || event.reason || 'Gemini Live audio connection stopped. Please start a new session.');
       };
     } catch (err: any) {
       console.error(err);

@@ -49,11 +49,13 @@ function buildGeminiSetup(jobRole: string, language: string) {
   return {
     setup: {
       model: `models/${LIVE_MODEL}`,
-      responseModalities: ["AUDIO"],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: LIVE_VOICE_NAME,
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: LIVE_VOICE_NAME,
+            },
           },
         },
       },
@@ -77,6 +79,7 @@ function buildGeminiSetup(jobRole: string, language: string) {
 
 Deno.serve(async (req) => {
   const requestId = crypto.randomUUID();
+  const url = new URL(req.url);
   if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
     return new Response("Expected WebSocket upgrade.", { status: 426 });
   }
@@ -84,7 +87,6 @@ Deno.serve(async (req) => {
   const auth = await authenticate(req);
   if ("error" in auth) return auth.error;
 
-  const url = new URL(req.url);
   const jobRole = url.searchParams.get("job_role") || "the target role";
   const language = url.searchParams.get("language") || "English";
   const { userId, supabase } = auth;
