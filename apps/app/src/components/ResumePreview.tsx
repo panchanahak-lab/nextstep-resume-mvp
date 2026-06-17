@@ -2,12 +2,25 @@ import React from 'react';
 import type { ResumeData } from '../../../../packages/shared/src/types';
 import Card from '../../../../packages/shared/src/components/Card';
 import Badge from '../../../../packages/shared/src/components/Badge';
+import { COPY } from '@nextstep/shared';
 
 interface ResumePreviewProps {
   data: ResumeData;
 }
 
 const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
+  const isEmpty = !data.name && !data.title && !data.summary && data.experience.length === 0;
+
+  if (isEmpty) {
+    return (
+      <Card className="p-6 lg:p-8 flex items-center justify-center min-h-[500px] bg-neutral-50/50 dark:bg-neutral-900/50 border-dashed">
+        <p className="text-neutral-500 dark:text-neutral-400 text-center">
+          {COPY.BUILDER.emptyState}
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-6 lg:p-8">
       {/* Header */}

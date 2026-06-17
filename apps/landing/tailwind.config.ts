@@ -7,6 +7,14 @@ const config: Config = {
     './src/**/*.{ts,tsx}',
     '../../packages/shared/src/**/*.{ts,tsx}',
   ],
+  theme: {
+    extend: {
+      animation: {
+        'bounce-slow': 'bounce 3s infinite',
+        'bounce-slow-reverse': 'bounce 3s infinite reverse',
+      }
+    }
+  }
 };
 
 export default config;

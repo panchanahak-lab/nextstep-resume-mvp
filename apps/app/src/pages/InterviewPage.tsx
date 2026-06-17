@@ -4,6 +4,7 @@ import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import InterviewChat from '../components/InterviewChat';
 import { mockInterviewMessages } from '../data/mockData';
+import { COPY } from '@nextstep/shared';
 
 const mockQuestions = [
   'Can you walk me through a recent data center cooling project you managed?',
@@ -62,6 +63,12 @@ const InterviewPage: React.FC = () => {
 
   return (
     <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">{COPY.INTERVIEW.headline}</h1>
+        <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.INTERVIEW.supportText}</p>
+        <p className="text-sm text-primary-600 font-medium mt-1">{COPY.INTERVIEW.warmupMessage}</p>
+      </div>
+
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
@@ -81,9 +88,10 @@ const InterviewPage: React.FC = () => {
             <option>Technical</option>
             <option>Resume-based</option>
           </select>
+          <p className="text-xs text-neutral-500 mt-1">{COPY.INTERVIEW.difficultyHelper}</p>
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Language</label>
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{COPY.INTERVIEW.languageHelper}</label>
           <select value={language} onChange={(e) => setLanguage(e.target.value)} className={selectClasses}>
             <option>English</option>
             <option>Hindi</option>
@@ -104,8 +112,9 @@ const InterviewPage: React.FC = () => {
         {/* Chat - 2 columns */}
         <div className="lg:col-span-2">
           <div className="flex gap-3 mb-4">
-            <Button variant="primary" onClick={handleStartInterview}>Start Interview</Button>
-            <Button variant="secondary" onClick={handleNextQuestion}>Next Question</Button>
+            <Button variant="primary" onClick={handleStartInterview}>{COPY.INTERVIEW.ctaStart}</Button>
+            <Button variant="secondary" onClick={handleNextQuestion}>{COPY.INTERVIEW.ctaNext}</Button>
+            <Button variant="secondary" onClick={() => alert('Skip functionality')}>{COPY.INTERVIEW.ctaSkip}</Button>
           </div>
           <Card>
             <InterviewChat messages={messages} onSendMessage={handleSendMessage} />
@@ -115,7 +124,8 @@ const InterviewPage: React.FC = () => {
         {/* Feedback - 1 column */}
         <div className="mt-6 lg:mt-0">
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">AI Feedback</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-2">{COPY.INTERVIEW_RESULT.headline}</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">{COPY.INTERVIEW_RESULT.encouragement}</p>
 
             {/* Score */}
             <div className="mb-4">

@@ -1,5 +1,7 @@
 // Theme
-export { theme } from './theme';
+export * from './theme';
+export * from './types';
+export * from './copy';
 
 // Types
 export type {

@@ -9,6 +9,8 @@ export interface TextareaProps {
   rows?: number;
   className?: string;
   required?: boolean;
+  disabled?: boolean;
+  helperText?: string;
 }
 
 export function Textarea({
@@ -20,6 +22,8 @@ export function Textarea({
   rows = 4,
   className = '',
   required = false,
+  disabled = false,
+  helperText,
 }: TextareaProps) {
   return (
     <div className={className}>
@@ -39,8 +43,14 @@ export function Textarea({
         onChange={onChange}
         rows={rows}
         required={required}
-        className="w-full rounded-btn border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+        disabled={disabled}
+        className="w-full rounded-btn border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 resize-y min-h-[80px]"
       />
+      {helperText && (
+        <p className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+          {helperText}
+        </p>
+      )}
     </div>
   );
 }

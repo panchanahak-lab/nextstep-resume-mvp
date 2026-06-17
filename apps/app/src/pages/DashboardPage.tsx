@@ -4,12 +4,18 @@ import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import StatCard from '../../../../packages/shared/src/components/StatCard';
 import { mockActivityItems } from '../data/mockData';
+import { COPY } from '@nextstep/shared';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
     <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">{COPY.DASHBOARD.welcome}</h1>
+        <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.DASHBOARD.supportText}</p>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -58,15 +64,15 @@ const DashboardPage: React.FC = () => {
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Quick Actions</h2>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => navigate('/builder')}>Create Resume</Button>
-          <Button variant="secondary" onClick={() => navigate('/scanner')}>Scan Resume</Button>
-          <Button variant="secondary" onClick={() => navigate('/interview')}>Start Mock Interview</Button>
+          <Button variant="primary" onClick={() => navigate('/builder')}>{COPY.BUTTONS.RESUME.build}</Button>
+          <Button variant="secondary" onClick={() => navigate('/scanner')}>{COPY.BUTTONS.RESUME.scan}</Button>
+          <Button variant="secondary" onClick={() => navigate('/interview')}>{COPY.BUTTONS.INTERVIEW.start}</Button>
         </div>
       </div>
 
       {/* Recent Activity */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Recent Activity</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">{COPY.DASHBOARD.recentActivity}</h2>
         <Card className="divide-y divide-neutral-100 dark:divide-neutral-800">
           {mockActivityItems.map((item, index) => (
             <div

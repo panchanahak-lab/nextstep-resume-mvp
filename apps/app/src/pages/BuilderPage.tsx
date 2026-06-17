@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ResumeData } from '../../../../packages/shared/src/types';
+import { COPY } from '@nextstep/shared';
 import Button from '../../../../packages/shared/src/components/Button';
 import ResumeForm from '../components/ResumeForm';
 import ResumePreview from '../components/ResumePreview';
@@ -10,6 +11,11 @@ const BuilderPage: React.FC = () => {
 
   return (
     <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">{COPY.BUILDER.headline}</h1>
+        <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.BUILDER.supportText}</p>
+        <p className="text-sm text-primary-600 font-medium mt-1">{COPY.BUILDER.formHelper}</p>
+      </div>
       <div className="lg:grid lg:grid-cols-2 gap-6">
         {/* Left: Form */}
         <div>
@@ -19,7 +25,7 @@ const BuilderPage: React.FC = () => {
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
               variant="primary"
-              onClick={() => alert('TODO: Integrate Gemini API for summary generation')}
+              onClick={() => alert(COPY.BUILDER.successMessage)}
             >
               Generate AI Summary
             </Button>
@@ -27,13 +33,13 @@ const BuilderPage: React.FC = () => {
               variant="secondary"
               onClick={() => alert('TODO: Integrate AI for bullet point improvement')}
             >
-              Improve Bullet Points
+              {COPY.BUTTONS.RESUME.improve}
             </Button>
             <Button
               variant="secondary"
               onClick={() => alert('TODO: Integrate PDF generation')}
             >
-              Download PDF
+              {COPY.BUTTONS.RESUME.download}
             </Button>
           </div>
         </div>

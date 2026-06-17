@@ -1,48 +1,56 @@
 import React from 'react';
+import { ArrowRight } from 'lucide-react';
 
 const steps = [
   {
     number: '1',
     title: 'Create or Upload',
-    description: 'Create or upload your resume using our guided builder.',
+    description: 'Fill details or upload your existing resume.',
   },
   {
     number: '2',
     title: 'Scan & Improve',
-    description: 'Scan and improve with AI feedback and ATS scoring.',
+    description: 'Improve with ATS scan and AI suggestions.',
   },
   {
     number: '3',
     title: 'Practice & Apply',
-    description: 'Practice mock interviews and improve before applying.',
+    description: 'Practice interview and download your final resume.',
   },
 ];
 
 const HowItWorks: React.FC = () => {
   return (
-    <section id="how-it-works" className="py-20 bg-neutral-50">
+    <section id="how-it-works" className="py-24 bg-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold text-neutral-900 text-center">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-16">
           How It Works
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 relative">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
           {/* Dashed connector line — desktop only */}
-          <div className="hidden md:block absolute top-5 left-1/6 right-1/6 h-0.5 border-t-2 border-dashed border-neutral-300" style={{ left: '20%', right: '20%' }} />
+          <div className="hidden md:block absolute top-6 left-[16.6%] right-[16.6%] h-0.5 border-t-2 border-dashed border-gray-200" />
 
           {steps.map((step) => (
-            <div key={step.number} className="flex flex-col items-center text-center relative z-10">
-              <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
+            <div key={step.number} className="flex flex-col items-center text-center relative z-10 group">
+              <div className="w-14 h-14 rounded-full bg-white border-4 border-gray-50 text-blue-600 flex items-center justify-center font-bold text-xl shadow-lg mb-6 group-hover:scale-110 group-hover:bg-blue-600 group-hover:border-blue-100 group-hover:text-white transition-all duration-300">
                 {step.number}
               </div>
-              <h3 className="text-lg font-semibold text-neutral-900 mt-4">
+              <h3 className="text-xl font-bold text-gray-900 mb-3">
                 {step.title}
               </h3>
-              <p className="text-neutral-600 mt-2 max-w-xs">
+              <p className="text-gray-600 max-w-xs leading-relaxed">
                 {step.description}
               </p>
             </div>
           ))}
+        </div>
+        
+        <div className="mt-16 text-center">
+          <button className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
+            Try It Now
+            <ArrowRight className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </section>

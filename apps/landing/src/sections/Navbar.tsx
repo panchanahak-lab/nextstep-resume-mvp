@@ -1,91 +1,93 @@
 import React, { useState } from 'react';
-import { Button } from '../../../../packages/shared/src/components/Button';
-
-const navLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'How it works', href: '#how-it-works' },
-  { label: 'For Engineers', href: '#for-engineers' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Contact', href: '#contact' },
-];
+import AuthenticationModal from '../components/AuthenticationModal';
+import { Menu, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+
+  const openAuth = (mode: 'login' | 'signup') => {
+    setAuthMode(mode);
+    setAuthModalOpen(true);
+    setMobileOpen(false);
+  };
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-neutral-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-        {/* Logo */}
-        <a href="#hero" className="font-bold text-xl text-primary-600">
-          NextStep
-        </a>
+    <>
+      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link to="/" className="font-bold text-2xl text-blue-600 tracking-tight">
+            NextStep
+          </Link>
 
-        {/* Desktop nav links */}
-        <div className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors"
+          {/* Desktop Right side */}
+          <div className="hidden md:flex items-center gap-4">
+            <button 
+              onClick={() => openAuth('login')}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
-              {link.label}
-            </a>
-          ))}
-        </div>
-
-        {/* Right side */}
-        <div className="flex items-center gap-3">
-          <a href="http://localhost:3001" className="hidden md:block">
-            <Button variant="primary" size="sm">
-              Open App
-            </Button>
-          </a>
+              Login
+            </button>
+            <button 
+              onClick={() => openAuth('signup')}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              Create Account
+            </button>
+            <button 
+              onClick={() => openAuth('signup')}
+              className="text-sm font-medium bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              Start Free
+            </button>
+          </div>
 
           {/* Mobile hamburger */}
           <button
-            className="md:hidden p-2 rounded-md text-neutral-600 hover:bg-neutral-100 transition-colors"
+            className="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
-            {mobileOpen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            )}
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
-      </div>
 
-      {/* Mobile dropdown */}
-      {mobileOpen && (
-        <div className="md:hidden border-t border-neutral-200 bg-white/95 backdrop-blur-md">
-          <div className="px-4 py-4 flex flex-col gap-3">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors py-2"
+        {/* Mobile dropdown */}
+        {mobileOpen && (
+          <div className="md:hidden border-t border-gray-100 bg-white">
+            <div className="px-4 py-4 flex flex-col gap-3">
+              <button 
+                onClick={() => openAuth('login')}
+                className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
               >
-                {link.label}
-              </a>
-            ))}
-            <a href="http://localhost:3001" className="mt-2">
-              <Button variant="primary" size="sm" className="w-full">
-                Open App
-              </Button>
-            </a>
+                Login
+              </button>
+              <button 
+                onClick={() => openAuth('signup')}
+                className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
+              >
+                Create Account
+              </button>
+              <button 
+                onClick={() => openAuth('signup')}
+                className="w-full text-sm font-medium bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors text-center"
+              >
+                Start Free
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </nav>
+        )}
+      </nav>
+
+      <AuthenticationModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)} 
+        initialMode={authMode} 
+      />
+    </>
   );
 };
 

@@ -5,6 +5,7 @@ import Badge from '../../../../packages/shared/src/components/Badge';
 import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
 import { mockScanResult } from '../data/mockData';
+import { COPY } from '@nextstep/shared';
 
 const ScannerPage: React.FC = () => {
   const [resumeText, setResumeText] = useState('');
@@ -21,15 +22,24 @@ const ScannerPage: React.FC = () => {
       {/* Input Section */}
       <div className="lg:grid lg:grid-cols-2 gap-6">
         <div>
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{COPY.UPLOAD.headline}</h2>
+            <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.UPLOAD.supportText}</p>
+          </div>
           <Textarea
-            label="Your Resume"
+            label="Your Resume Text"
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
             rows={8}
             placeholder="Paste your resume text here..."
+            helperText={COPY.UPLOAD.instruction}
           />
         </div>
         <div className="mt-4 lg:mt-0">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{COPY.JOB_MATCH.headline}</h2>
+            <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.JOB_MATCH.supportText}</p>
+          </div>
           <Textarea
             label="Job Description"
             value={jobDescription}
@@ -42,7 +52,7 @@ const ScannerPage: React.FC = () => {
 
       <div className="mt-6">
         <Button variant="primary" className="w-full sm:w-auto" onClick={handleScan}>
-          Scan &amp; Score
+          {COPY.JOB_MATCH.cta}
         </Button>
       </div>
 
@@ -51,7 +61,13 @@ const ScannerPage: React.FC = () => {
         <div className="mt-8">
           {/* Score */}
           <div className="flex justify-center mb-8">
-            <ScoreGauge score={mockScanResult.score} label="ATS Compatibility Score" />
+            <div className="text-center">
+              <ScoreGauge score={mockScanResult.score} label="ATS Compatibility Score" />
+              <p className="mt-4 text-neutral-900 font-medium">{COPY.JOB_MATCH.resultMessage(mockScanResult.score)}</p>
+              <p className="text-neutral-500 mt-1">
+                {mockScanResult.score >= 80 ? COPY.ATS.highScore : mockScanResult.score >= 50 ? COPY.ATS.midScore : COPY.ATS.lowScore}
+              </p>
+            </div>
           </div>
 
           {/* Details */}

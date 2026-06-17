@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ResumeData, Experience, Education, Project } from '../../../../packages/shared/src/types';
+import { COPY } from '@nextstep/shared';
 import Card from '../../../../packages/shared/src/components/Card';
 import Input from '../../../../packages/shared/src/components/Input';
 import Textarea from '../../../../packages/shared/src/components/Textarea';
@@ -81,9 +82,9 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange }) => {
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-4">Basic Information</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Full Name" value={data.name} onChange={(e) => updateField('name', e.target.value)} />
-          <Input label="Job Title" value={data.title} onChange={(e) => updateField('title', e.target.value)} />
-          <Input label="Location" value={data.location} onChange={(e) => updateField('location', e.target.value)} />
+          <Input label="Full Name" value={data.name} onChange={(e) => updateField('name', e.target.value)} helperText={COPY.BUILDER.helpers.name} />
+          <Input label="Job Title" value={data.title} onChange={(e) => updateField('title', e.target.value)} helperText={COPY.BUILDER.helpers.title} />
+          <Input label="Location" value={data.location} onChange={(e) => updateField('location', e.target.value)} helperText={COPY.BUILDER.helpers.location} />
           <Input label="Email" type="email" value={data.email} onChange={(e) => updateField('email', e.target.value)} />
           <Input label="Phone" value={data.phone} onChange={(e) => updateField('phone', e.target.value)} />
         </div>
@@ -97,6 +98,7 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange }) => {
           value={data.summary}
           onChange={(e) => updateField('summary', e.target.value)}
           rows={4}
+          helperText={COPY.BUILDER.summaryHelper}
         />
       </Card>
 
@@ -126,6 +128,7 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange }) => {
                 value={exp.description}
                 onChange={(e) => updateExperience(index, 'description', e.target.value)}
                 rows={3}
+                helperText={COPY.BUILDER.helpers.experience}
               />
             </div>
           ))}
@@ -167,6 +170,7 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange }) => {
           value={data.skills.join(', ')}
           onChange={(e) => handleSkillsChange(e.target.value)}
           placeholder="e.g., React, TypeScript, Node.js"
+          helperText={COPY.BUILDER.helpers.skills}
         />
         <div className="flex flex-wrap gap-2 mt-3">
           {data.skills.map((skill, index) => (
@@ -207,6 +211,7 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange }) => {
                 value={project.description}
                 onChange={(e) => updateProject(index, 'description', e.target.value)}
                 rows={3}
+                helperText={COPY.BUILDER.helpers.projects}
               />
               <Input label="Tools / Technologies" value={project.tools} onChange={(e) => updateProject(index, 'tools', e.target.value)} />
             </div>
