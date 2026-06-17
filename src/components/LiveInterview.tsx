@@ -26,7 +26,7 @@ const LANGUAGES = [
   'Urdu',
 ];
 
-const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const LIVE_VOICE_NAME = 'Kore';
 const INPUT_AUDIO_MIME_TYPE = 'audio/pcm;rate=16000';
 const OUTPUT_AUDIO_SAMPLE_RATE = 24000;
