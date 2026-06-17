@@ -1,7 +1,11 @@
 import React from 'react';
 import { Mic, Play, Settings2, Languages, ArrowRight } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const LiveInterviewSection: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section className="py-24 bg-gray-50 border-y border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,7 +35,10 @@ const LiveInterviewSection: React.FC = () => {
               </div>
 
               <div className="relative z-10">
-                <button className="w-full bg-white text-purple-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors shadow-lg flex items-center justify-center gap-2">
+                <button
+                  onClick={() => goToProtectedRoute(APP_ROUTES.interview)}
+                  className="w-full bg-white text-purple-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-colors shadow-lg flex items-center justify-center gap-2"
+                >
                   Start Live Interview <ArrowRight className="w-5 h-5" />
                 </button>
               </div>

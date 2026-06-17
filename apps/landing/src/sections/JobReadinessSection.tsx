@@ -1,7 +1,11 @@
 import React from 'react';
 import { Target, ArrowRight } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const JobReadinessSection: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section className="py-24 bg-white border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -14,7 +18,10 @@ const JobReadinessSection: React.FC = () => {
               Stop applying blindly. See what is missing first.
             </p>
 
-            <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 mx-auto lg:mx-0">
+            <button
+              onClick={() => goToProtectedRoute(APP_ROUTES.scanner)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 mx-auto lg:mx-0"
+            >
               Check Job Match
               <ArrowRight className="w-5 h-5" />
             </button>

@@ -1,5 +1,7 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const steps = [
   {
@@ -20,6 +22,8 @@ const steps = [
 ];
 
 const HowItWorks: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section id="how-it-works" className="py-24 bg-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -47,7 +51,10 @@ const HowItWorks: React.FC = () => {
         </div>
         
         <div className="mt-16 text-center">
-          <button className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
+          <button
+            onClick={() => goToProtectedRoute(APP_ROUTES.builder, 'signup')}
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200"
+          >
             Try It Now
             <ArrowRight className="w-5 h-5" />
           </button>

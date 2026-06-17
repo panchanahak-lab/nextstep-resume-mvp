@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import AuthenticationModal from '../components/AuthenticationModal';
 import { Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const { openAuth, startFree } = useAuthActions();
 
-  const openAuth = (mode: 'login' | 'signup') => {
-    setAuthMode(mode);
-    setAuthModalOpen(true);
+  const openAuthentication = (mode: 'login' | 'signup') => {
+    openAuth(mode, APP_ROUTES.dashboard);
     setMobileOpen(false);
   };
 
@@ -26,19 +25,19 @@ const Navbar: React.FC = () => {
           {/* Desktop Right side */}
           <div className="hidden md:flex items-center gap-4">
             <button 
-              onClick={() => openAuth('login')}
+              onClick={() => openAuthentication('login')}
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
               Login
             </button>
             <button 
-              onClick={() => openAuth('signup')}
+              onClick={() => openAuthentication('signup')}
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
               Create Account
             </button>
             <button 
-              onClick={() => openAuth('signup')}
+              onClick={startFree}
               className="text-sm font-medium bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-sm"
             >
               Start Free
@@ -60,19 +59,22 @@ const Navbar: React.FC = () => {
           <div className="md:hidden border-t border-gray-100 bg-white">
             <div className="px-4 py-4 flex flex-col gap-3">
               <button 
-                onClick={() => openAuth('login')}
+                onClick={() => openAuthentication('login')}
                 className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
               >
                 Login
               </button>
               <button 
-                onClick={() => openAuth('signup')}
+                onClick={() => openAuthentication('signup')}
                 className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
               >
                 Create Account
               </button>
               <button 
-                onClick={() => openAuth('signup')}
+                onClick={async () => {
+                  setMobileOpen(false);
+                  await startFree();
+                }}
                 className="w-full text-sm font-medium bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors text-center"
               >
                 Start Free
@@ -82,11 +84,6 @@ const Navbar: React.FC = () => {
         )}
       </nav>
 
-      <AuthenticationModal 
-        isOpen={authModalOpen} 
-        onClose={() => setAuthModalOpen(false)} 
-        initialMode={authMode} 
-      />
     </>
   );
 };

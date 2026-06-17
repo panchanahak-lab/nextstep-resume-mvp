@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileText, ScanSearch, UserSquare2, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const actions = [
   {
@@ -10,7 +11,7 @@ const actions = [
     color: 'text-blue-600',
     bg: 'bg-blue-50',
     cta: 'Build Resume',
-    href: '#builder',
+    route: APP_ROUTES.builder,
   },
   {
     title: 'Scan Resume',
@@ -19,7 +20,7 @@ const actions = [
     color: 'text-green-600',
     bg: 'bg-green-50',
     cta: 'Scan My Resume',
-    href: '#scan',
+    route: APP_ROUTES.scanner,
   },
   {
     title: 'Live AI Mock Interview',
@@ -28,18 +29,24 @@ const actions = [
     color: 'text-purple-600',
     bg: 'bg-purple-50',
     cta: 'Start Interview',
-    href: '#interview',
+    route: APP_ROUTES.interview,
   },
 ];
 
 const CoreActionsSection: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section className="relative -mt-24 z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
       <div className="grid md:grid-cols-3 gap-6">
         {actions.map((action, index) => {
           const Icon = action.icon;
           return (
-            <div key={index} className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
+            <button
+              key={index}
+              onClick={() => goToProtectedRoute(action.route)}
+              className="group bg-white rounded-2xl p-8 shadow-xl border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 text-left"
+            >
               <div className={`w-14 h-14 ${action.bg} rounded-xl flex items-center justify-center mb-6`}>
                 <Icon className={`w-7 h-7 ${action.color}`} />
               </div>
@@ -47,11 +54,11 @@ const CoreActionsSection: React.FC = () => {
               <p className="text-gray-600 mb-8 leading-relaxed">
                 {action.description}
               </p>
-              <a href={action.href} className={`inline-flex items-center gap-2 font-semibold ${action.color} hover:gap-3 transition-all`}>
+              <span className={`inline-flex items-center gap-2 font-semibold ${action.color} group-hover:gap-3 transition-all`}>
                 {action.cta}
                 <ArrowRight className="w-4 h-4" />
-              </a>
-            </div>
+              </span>
+            </button>
           );
         })}
       </div>

@@ -1,7 +1,11 @@
 import React from 'react';
 import { ThumbsUp, ThumbsDown, Lightbulb, RefreshCcw, Languages } from 'lucide-react';
+import { APP_ROUTES } from '@nextstep/shared';
+import { useAuthActions } from '../context/AuthActionContext';
 
 const InterviewResultSection: React.FC = () => {
+  const { goToProtectedRoute } = useAuthActions();
+
   return (
     <section className="py-24 bg-white border-t border-gray-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -62,7 +66,10 @@ const InterviewResultSection: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
-              <button className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <button
+                onClick={() => goToProtectedRoute(APP_ROUTES.interview)}
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 <RefreshCcw className="w-5 h-5" /> Practice Again
               </button>
               <button className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-200 px-6 py-4 rounded-xl font-bold hover:bg-gray-50 transition-colors">
