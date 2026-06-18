@@ -2,6 +2,8 @@ import React from 'react';
 import { Gift } from 'lucide-react';
 
 const ShareReferralSection: React.FC = () => {
+  const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent('Try Nextstep to build your resume, scan your CV, and practice mock interviews.')}`;
+
   return (
     <section className="py-20 bg-blue-600 text-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -12,11 +14,16 @@ const ShareReferralSection: React.FC = () => {
           Help your friends get hired too.
         </h2>
         <p className="text-blue-100 text-lg mb-8 max-w-xl mx-auto">
-          Share NextStep with friends and unlock free ATS scans for both of you.
+          Share Nextstep with friends and unlock included ATS scan rewards for both of you.
         </p>
-        <button className="bg-white text-blue-600 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-50 transition-colors shadow-xl">
+        <a
+          href={whatsappShareUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex bg-white text-blue-600 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-50 transition-colors shadow-xl"
+        >
           Share on WhatsApp
-        </button>
+        </a>
       </div>
     </section>
   );

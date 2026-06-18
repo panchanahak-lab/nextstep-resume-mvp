@@ -4,7 +4,6 @@ interface AppAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGoogleAuth: () => Promise<void>;
-  onEmailAuth: (email: string) => Promise<boolean>;
   error?: string;
 }
 
@@ -12,35 +11,18 @@ const AppAuthModal: React.FC<AppAuthModalProps> = ({
   isOpen,
   onClose,
   onGoogleAuth,
-  onEmailAuth,
   error,
 }) => {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   if (!isOpen) return null;
 
   const handleGoogle = async () => {
     setLoading(true);
-    setMessage('');
-    await onGoogleAuth();
-    setLoading(false);
-  };
-
-  const handleEmail = async () => {
-    if (!email.trim()) {
-      setMessage('Enter your email address first.');
-      return;
-    }
-
-    setLoading(true);
-    setMessage('');
-    const ok = await onEmailAuth(email.trim());
-    setLoading(false);
-
-    if (ok) {
-      setMessage('Check your email for the secure login link.');
+    try {
+      await onGoogleAuth();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,9 +37,9 @@ const AppAuthModal: React.FC<AppAuthModalProps> = ({
           <span className="text-xl leading-none">&times;</span>
         </button>
 
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Welcome back</h2>
+        <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Welcome back to Nextstep</h2>
         <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-          Log in to continue to your resume tools.
+          Continue with Google to save your resumes, unlock your first included CV scan, and track interview results.
         </p>
 
         <div className="mt-8 space-y-4">
@@ -66,38 +48,22 @@ const AppAuthModal: React.FC<AppAuthModalProps> = ({
             disabled={loading}
             className="flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 px-4 py-3 font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >
-            Continue with Google
-          </button>
-
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
-            <span className="mx-4 flex-shrink-0 text-sm text-neutral-400">or</span>
-            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
-          </div>
-
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-            className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-          />
-
-          <button
-            onClick={handleEmail}
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 px-4 py-3 font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
-          >
-            <span aria-hidden="true" className="text-lg leading-none">@</span>
-            Continue with Email OTP
+            {loading ? 'Opening Google login...' : 'Continue with Google'}
           </button>
         </div>
 
-        {(error || message) && (
-          <p className={`mt-5 text-sm ${error ? 'text-red-600' : 'text-green-600'}`}>
-            {error || message}
+        {error && (
+          <p className="mt-5 text-sm text-red-600" role="alert">
+            {error}
           </p>
         )}
+
+        <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
+          By continuing, you agree to our{' '}
+          <a href="/terms" className="font-medium text-primary-600 hover:text-primary-700">Terms</a>
+          {' '}and{' '}
+          <a href="/privacy" className="font-medium text-primary-600 hover:text-primary-700">Privacy Policy</a>.
+        </p>
       </div>
     </div>
   );

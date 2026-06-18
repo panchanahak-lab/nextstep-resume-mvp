@@ -11,11 +11,12 @@ import {
 import AuthenticationModal from '../components/AuthenticationModal';
 
 type AuthMode = 'login' | 'signup';
+const GOOGLE_AUTH_ERROR = 'We could not log you in with Google. Please try again.';
 
 interface AuthActionContextValue {
   openAuth: (mode: AuthMode, intendedDestination?: string) => void;
   goToProtectedRoute: (destination: string, mode?: AuthMode) => Promise<void>;
-  startFree: () => Promise<void>;
+  getStarted: () => Promise<void>;
 }
 
 const AuthActionContext = createContext<AuthActionContextValue | null>(null);
@@ -44,61 +45,46 @@ export const AuthActionProvider: React.FC<React.PropsWithChildren> = ({ children
     openAuth(mode, destination);
   };
 
-  const startFree = async () => {
+  const getStarted = async () => {
     await goToProtectedRoute(APP_ROUTES.dashboard, 'signup');
   };
 
   const signInWithGoogle = async () => {
     if (!isSupabaseConfigured()) {
-      setAuthError('Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel.');
+      setAuthError(GOOGLE_AUTH_ERROR);
       return;
     }
 
     const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    const destination = window.localStorage.getItem('nextstep_intended_destination') ?? APP_ROUTES.dashboard;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: absoluteUrlFor(destination),
-      },
-    });
-
-    if (error) setAuthError(error.message);
-  };
-
-  const sendEmailLink = async (email: string) => {
-    if (!isSupabaseConfigured()) {
-      setAuthError('Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel.');
-      return false;
+    if (!supabase) {
+      setAuthError(GOOGLE_AUTH_ERROR);
+      return;
     }
 
-    const supabase = getSupabaseClient();
-    if (!supabase) return false;
-
     const destination = window.localStorage.getItem('nextstep_intended_destination') ?? APP_ROUTES.dashboard;
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: authMode === 'signup',
-        emailRedirectTo: absoluteUrlFor(destination),
-      },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: absoluteUrlFor(destination),
+        },
+      });
 
-    if (error) {
-      setAuthError(error.message);
-      return false;
+      if (error) {
+        console.error('Google auth failed', error);
+        setAuthError(GOOGLE_AUTH_ERROR);
+      }
+    } catch (error) {
+      console.error('Google auth failed', error);
+      setAuthError(GOOGLE_AUTH_ERROR);
     }
-
-    return true;
   };
 
   const value = useMemo(
     () => ({
       openAuth,
       goToProtectedRoute,
-      startFree,
+      getStarted,
     }),
     [],
   );
@@ -111,7 +97,6 @@ export const AuthActionProvider: React.FC<React.PropsWithChildren> = ({ children
         onClose={() => setAuthModalOpen(false)}
         initialMode={authMode}
         onGoogleAuth={signInWithGoogle}
-        onEmailAuth={sendEmailLink}
         error={authError}
       />
     </AuthActionContext.Provider>

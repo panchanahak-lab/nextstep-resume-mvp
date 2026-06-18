@@ -3,7 +3,11 @@ import { ArrowRight, CheckCircle2, Star } from 'lucide-react';
 import { useAuthActions } from '../context/AuthActionContext';
 
 const Hero: React.FC = () => {
-  const { startFree } = useAuthActions();
+  const { getStarted } = useAuthActions();
+
+  const scrollToHowItWorks = () => {
+    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <section id="hero" className="relative bg-white pt-24 pb-32 overflow-hidden">
@@ -27,15 +31,19 @@ const Hero: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
             <button
-              onClick={startFree}
+              onClick={getStarted}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200"
             >
-              Start Free
+              Get Started
               <ArrowRight className="w-5 h-5" />
             </button>
-            <a href="#how-it-works" className="w-full sm:w-auto flex items-center justify-center px-8 py-4 rounded-full font-semibold text-gray-700 hover:bg-gray-100 transition-all">
+            <button
+              type="button"
+              onClick={scrollToHowItWorks}
+              className="w-full sm:w-auto flex items-center justify-center px-8 py-4 rounded-full font-semibold text-gray-700 hover:bg-gray-100 transition-all"
+            >
               See How It Works
-            </a>
+            </button>
           </div>
 
           <div className="mt-10 flex items-center justify-center lg:justify-start gap-4 text-sm text-gray-500 font-medium">

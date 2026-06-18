@@ -72,7 +72,13 @@ const InterviewResultSection: React.FC = () => {
               >
                 <RefreshCcw className="w-5 h-5" /> Practice Again
               </button>
-              <button className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-200 px-6 py-4 rounded-xl font-bold hover:bg-gray-50 transition-colors">
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                title="Result language switching is shown as a demo preview."
+                className="flex-1 flex items-center justify-center gap-2 bg-white text-gray-400 border border-gray-200 px-6 py-4 rounded-xl font-bold cursor-not-allowed"
+              >
                 <Languages className="w-5 h-5" /> Switch Result Language
               </button>
             </div>

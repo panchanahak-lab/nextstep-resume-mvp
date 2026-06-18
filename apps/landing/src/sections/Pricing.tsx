@@ -4,7 +4,7 @@ import { APP_ROUTES } from '@nextstep/shared';
 import { useAuthActions } from '../context/AuthActionContext';
 
 const Pricing: React.FC = () => {
-  const { goToProtectedRoute, startFree } = useAuthActions();
+  const { goToProtectedRoute, getStarted } = useAuthActions();
 
   return (
     <section id="pricing" className="py-24 bg-gray-50 border-t border-gray-100">
@@ -34,10 +34,10 @@ const Pricing: React.FC = () => {
               </li>
             </ul>
             <button
-              onClick={startFree}
+              onClick={getStarted}
               className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors"
             >
-              Start Free
+              Get Started
             </button>
           </div>
 

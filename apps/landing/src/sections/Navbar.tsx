@@ -6,7 +6,7 @@ import { useAuthActions } from '../context/AuthActionContext';
 
 const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { openAuth, startFree } = useAuthActions();
+  const { openAuth, getStarted } = useAuthActions();
 
   const openAuthentication = (mode: 'login' | 'signup') => {
     openAuth(mode, APP_ROUTES.dashboard);
@@ -19,7 +19,7 @@ const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="font-bold text-2xl text-blue-600 tracking-tight">
-            NextStep
+            Nextstep
           </Link>
 
           {/* Desktop Right side */}
@@ -28,7 +28,7 @@ const Navbar: React.FC = () => {
               onClick={() => openAuthentication('login')}
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
-              Login
+              Log In
             </button>
             <button 
               onClick={() => openAuthentication('signup')}
@@ -37,10 +37,10 @@ const Navbar: React.FC = () => {
               Create Account
             </button>
             <button 
-              onClick={startFree}
+              onClick={getStarted}
               className="text-sm font-medium bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-sm"
             >
-              Start Free
+              Get Started
             </button>
           </div>
 
@@ -62,7 +62,7 @@ const Navbar: React.FC = () => {
                 onClick={() => openAuthentication('login')}
                 className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
               >
-                Login
+                Log In
               </button>
               <button 
                 onClick={() => openAuthentication('signup')}
@@ -73,11 +73,11 @@ const Navbar: React.FC = () => {
               <button 
                 onClick={async () => {
                   setMobileOpen(false);
-                  await startFree();
+                  await getStarted();
                 }}
                 className="w-full text-sm font-medium bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors text-center"
               >
-                Start Free
+                Get Started
               </button>
             </div>
           </div>

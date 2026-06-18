@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { X, Mail } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface AuthenticationModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'login' | 'signup';
   onGoogleAuth: () => Promise<void>;
-  onEmailAuth: (email: string) => Promise<boolean>;
   error?: string;
 }
 
@@ -15,35 +14,18 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({
   onClose,
   initialMode = 'login',
   onGoogleAuth,
-  onEmailAuth,
   error,
 }) => {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   if (!isOpen) return null;
 
   const handleGoogle = async () => {
     setLoading(true);
-    setMessage('');
-    await onGoogleAuth();
-    setLoading(false);
-  };
-
-  const handleEmail = async () => {
-    if (!email.trim()) {
-      setMessage('Enter your email address first.');
-      return;
-    }
-
-    setLoading(true);
-    setMessage('');
-    const ok = await onEmailAuth(email.trim());
-    setLoading(false);
-
-    if (ok) {
-      setMessage('Check your email for the secure login link.');
+    try {
+      await onGoogleAuth();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,10 +41,10 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({
         
         <div className="p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {initialMode === 'login' ? 'Welcome back' : 'Create an account'}
+            {initialMode === 'login' ? 'Welcome back to Nextstep' : 'Create your Nextstep account'}
           </h2>
           <p className="text-gray-600 mb-8">
-            Save your resumes, ATS reports, and interview history in one place.
+            Continue with Google to save your resumes, unlock your first included CV scan, and track interview results.
           </p>
 
           <div className="space-y-4">
@@ -77,41 +59,21 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
               </svg>
-              {loading ? 'Opening secure login...' : 'Continue with Google'}
-            </button>
-
-            <div className="relative flex items-center py-2">
-              <div className="flex-grow border-t border-gray-200"></div>
-              <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">or</span>
-              <div className="flex-grow border-t border-gray-200"></div>
-            </div>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            <button
-              onClick={handleEmail}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:opacity-60 disabled:cursor-wait"
-            >
-              <Mail className="w-5 h-5 text-gray-500" />
-              Continue with Email OTP
+              {loading ? 'Opening Google login...' : 'Continue with Google'}
             </button>
           </div>
 
-          {(error || message) && (
-            <p className={`mt-5 text-sm ${error ? 'text-red-600' : 'text-green-600'}`}>
-              {error || message}
+          {error && (
+            <p className="mt-5 text-sm text-red-600" role="alert">
+              {error}
             </p>
           )}
 
           <p className="mt-8 text-center text-sm text-gray-500">
-            By continuing, you agree to NextStep's Terms of Service and Privacy Policy.
+            By continuing, you agree to our{' '}
+            <a href="/terms" className="font-medium text-blue-600 hover:text-blue-700">Terms</a>
+            {' '}and{' '}
+            <a href="/privacy" className="font-medium text-blue-600 hover:text-blue-700">Privacy Policy</a>.
           </p>
         </div>
       </div>
