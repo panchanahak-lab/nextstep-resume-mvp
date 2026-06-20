@@ -2,6 +2,7 @@
 export * from './theme';
 export * from './types';
 export * from './copy';
+export * from './auth';
 
 // Types
 export type {
