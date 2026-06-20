@@ -45,6 +45,8 @@ export { EmptyState, default as EmptyStateDefault } from './components/EmptyStat
 export type { EmptyStateProps } from './components/EmptyState';
 
 export { ThemeToggle } from './components/ThemeToggle';
+export { AuthenticationModal } from './components/AuthenticationModal';
+export type { AuthenticationModalProps } from './components/AuthenticationModal';
 
 // Context
 export { ThemeProvider, useTheme } from './context/ThemeContext';

@@ -1,15 +1,23 @@
-import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2, Info, Clock } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import Badge from '../../../../packages/shared/src/components/Badge';
 import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
-import { COPY } from '@nextstep/shared';
+import { COPY, getSupabaseClient } from '@nextstep/shared';
 import { extractTextFromFile, type ParseResult } from '../utils/documentParser';
 import { analyzeResume, type ATSScanResult } from '../services/aiScanner';
 
+interface ScanHistoryItem {
+  id: string;
+  created_at: string;
+  score: number;
+  mode: string;
+}
+
 const ScannerPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [showResults, setShowResults] = useState(false);
@@ -32,6 +40,63 @@ const ScannerPage: React.FC = () => {
   const [parseWarning, setParseWarning] = useState('');
   const [scanResult, setScanResult] = useState<ATSScanResult | null>(null);
 
+  // History State
+  const [historyItems, setHistoryItems] = useState<ScanHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory();
+    }
+  }, [activeTab]);
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('scans')
+        .select('id, created_at, score, mode')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setHistoryItems(data as ScanHistoryItem[]);
+      }
+    } catch (e) {
+      console.error('Error fetching scan history:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const saveScanToHistory = async (result: ATSScanResult, text: string) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.from('scans').insert({
+        user_id: user.id,
+        score: result.score,
+        mode: result.mode,
+        resume_snippet: text.substring(0, 100),
+        missing_keywords: result.missingKeywords,
+        strengths: result.strengths,
+        suggestions: result.suggestions
+      });
+    } catch (e) {
+      console.error('Failed to save scan history', e);
+    }
+  };
+
   const handleScan = async () => {
     setScanError('');
     setParseWarning('');
@@ -46,19 +111,16 @@ const ScannerPage: React.FC = () => {
     try {
       let finalResumeText = resumeText;
 
-      // If the user uploaded a file but didn't paste text, extract from the file
       if (file && !resumeText.trim()) {
         const parseResult: ParseResult = await extractTextFromFile(file);
 
         if (parseResult.warning && !parseResult.text) {
-          // Complete parse failure — show soft warning, don't block
           setParseWarning(parseResult.warning);
           setIsScanning(false);
           return;
         }
 
         if (parseResult.warning && parseResult.text) {
-          // Partial success — proceed with whatever text we got
           setParseWarning(parseResult.warning);
         }
 
@@ -74,6 +136,9 @@ const ScannerPage: React.FC = () => {
       const result = await analyzeResume(finalResumeText, jobDescription);
       setScanResult(result);
       setShowResults(true);
+      
+      // Save to Supabase
+      await saveScanToHistory(result, finalResumeText);
     } catch (error: any) {
       setScanError(error.message || 'An error occurred during scanning. Please try again.');
     } finally {
@@ -123,7 +188,6 @@ const ScannerPage: React.FC = () => {
     }
 
     setIsFetching(true);
-    // Simulate fetch delay
     setTimeout(() => {
       setIsFetching(false);
       setJobDescription('This is a simulated fetched job description. We are looking for a skilled candidate with experience in React, TypeScript, and Tailwind CSS. You will be responsible for building responsive UI components and integrating with backend APIs.');
@@ -133,8 +197,58 @@ const ScannerPage: React.FC = () => {
 
   return (
     <div>
-      {/* Input Section */}
-      <div className="lg:grid lg:grid-cols-2 gap-8">
+      <div className="flex border-b border-neutral-200 dark:border-neutral-800 mb-6">
+        <button
+          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+            activeTab === 'scan'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+          }`}
+          onClick={() => setActiveTab('scan')}
+        >
+          New Scan
+        </button>
+        <button
+          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'history'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+          }`}
+          onClick={() => setActiveTab('history')}
+        >
+          <Clock className="w-4 h-4" /> History
+        </button>
+      </div>
+
+      {activeTab === 'history' ? (
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-6">Your Past Scans</h2>
+          {loadingHistory ? (
+            <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-neutral-400" /></div>
+          ) : historyItems.length > 0 ? (
+            <div className="space-y-4">
+              {historyItems.map((item) => (
+                <Card key={item.id} className="p-4 flex items-center justify-between">
+                  <div>
+                    <Badge>{item.mode === 'ats-match' ? 'ATS Match' : 'Quality Check'}</Badge>
+                    <p className="text-sm text-neutral-500 mt-2">{new Date(item.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-white">{item.score}<span className="text-sm text-neutral-500 font-normal">/100</span></p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-8 text-center text-neutral-500">
+              No previous scans found.
+            </Card>
+          )}
+        </div>
+      ) : (
+        <div>
+          {/* Input Section */}
+          <div className="lg:grid lg:grid-cols-2 gap-8">
         <div>
           <div className="mb-4">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{COPY.UPLOAD.headline}</h2>
@@ -392,6 +506,8 @@ const ScannerPage: React.FC = () => {
             </Card>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

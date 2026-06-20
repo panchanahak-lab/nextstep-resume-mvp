@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import AuthenticationModal from '../components/AuthenticationModal';
 import { Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { ThemeToggle } from '@nextstep/shared';
+import { ThemeToggle, AuthenticationModal } from '@nextstep/shared';
 
 const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
