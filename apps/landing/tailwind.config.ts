@@ -14,7 +14,8 @@ const config: Config = {
         'bounce-slow-reverse': 'bounce 3s infinite reverse',
       }
     }
-  }
+  },
+  darkMode: 'class',
 };
 
 export default config;

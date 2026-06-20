@@ -1,5 +1,5 @@
 import React from 'react';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider } from '@nextstep/shared';
 import AppRoutes from './routes';
 
 const App: React.FC = () => {

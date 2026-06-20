@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '@nextstep/shared';
 
 const ToggleSwitch: React.FC<{ enabled: boolean; onToggle: () => void; label: string }> = ({ enabled, onToggle, label }) => (
   <div className="flex items-center justify-between py-3">

@@ -42,3 +42,8 @@ export type { FeatureCardProps } from './components/FeatureCard';
 
 export { EmptyState, default as EmptyStateDefault } from './components/EmptyState';
 export type { EmptyStateProps } from './components/EmptyState';
+
+export { ThemeToggle } from './components/ThemeToggle';
+
+// Context
+export { ThemeProvider, useTheme } from './context/ThemeContext';

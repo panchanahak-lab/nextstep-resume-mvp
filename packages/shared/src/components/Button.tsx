@@ -11,9 +11,9 @@ export interface ButtonProps {
 }
 
 const variantClasses: Record<string, string> = {
-  primary: 'bg-primary-600 text-white hover:bg-primary-700',
-  secondary: 'border border-primary-600 text-primary-600 hover:bg-primary-50',
-  ghost: 'text-neutral-600 hover:bg-neutral-100',
+  primary: 'bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600',
+  secondary: 'border border-primary-600 text-primary-600 hover:bg-primary-50 dark:border-primary-500 dark:text-primary-400 dark:hover:bg-primary-900/30',
+  ghost: 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800',
 };
 
 const sizeClasses: Record<string, string> = {
@@ -36,7 +36,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-btn font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={`rounded-btn font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
       {children}
     </button>

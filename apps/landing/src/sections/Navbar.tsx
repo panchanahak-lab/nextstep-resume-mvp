@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AuthenticationModal from '../components/AuthenticationModal';
 import { Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ThemeToggle } from '@nextstep/shared';
 
 const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -16,7 +17,7 @@ const Navbar: React.FC = () => {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav className="sticky top-0 z-40 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-gray-100 dark:border-neutral-800 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="font-bold text-2xl text-blue-600 tracking-tight">
@@ -25,15 +26,16 @@ const Navbar: React.FC = () => {
 
           {/* Desktop Right side */}
           <div className="hidden md:flex items-center gap-4">
+            <ThemeToggle />
             <button 
               onClick={() => openAuth('login')}
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              className="text-sm font-medium text-gray-600 dark:text-neutral-300 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               Login
             </button>
             <button 
               onClick={() => openAuth('signup')}
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              className="text-sm font-medium text-gray-600 dark:text-neutral-300 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               Create Account
             </button>
@@ -47,7 +49,7 @@ const Navbar: React.FC = () => {
 
           {/* Mobile hamburger */}
           <button
-            className="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+            className="md:hidden p-2 rounded-md text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
@@ -57,17 +59,21 @@ const Navbar: React.FC = () => {
 
         {/* Mobile dropdown */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-gray-100 bg-white">
+          <div className="md:hidden border-t border-gray-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 transition-colors">
             <div className="px-4 py-4 flex flex-col gap-3">
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-neutral-800 mb-2">
+                <span className="text-sm font-medium text-gray-600 dark:text-neutral-300">Theme</span>
+                <ThemeToggle />
+              </div>
               <button 
                 onClick={() => openAuth('login')}
-                className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
+                className="w-full text-left text-sm font-medium text-gray-600 dark:text-neutral-300 hover:text-gray-900 dark:hover:text-white py-2"
               >
                 Login
               </button>
               <button 
                 onClick={() => openAuth('signup')}
-                className="w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 py-2"
+                className="w-full text-left text-sm font-medium text-gray-600 dark:text-neutral-300 hover:text-gray-900 dark:hover:text-white py-2"
               >
                 Create Account
               </button>
