@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import Badge from '../../../../packages/shared/src/components/Badge';
@@ -12,34 +13,192 @@ const ScannerPage: React.FC = () => {
   const [jobDescription, setJobDescription] = useState('');
   const [showResults, setShowResults] = useState(false);
 
+  // File Upload State
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // URL Fetcher State
+  const [jobUrl, setJobUrl] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [urlError, setUrlError] = useState('');
+  const [urlSuccess, setUrlSuccess] = useState('');
+
   const handleScan = () => {
     // TODO: Integrate with backend scanning API
     setShowResults(true);
   };
 
+  const handleFileProcess = (selectedFile: File) => {
+    setFileError('');
+    if (!selectedFile.name.toLowerCase().endsWith('.pdf') && !selectedFile.name.toLowerCase().endsWith('.docx')) {
+      setFileError('Please upload a PDF or DOCX file only.');
+      return;
+    }
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setFileError('File size exceeds 5MB. Please upload a smaller file.');
+      return;
+    }
+    setFile(selectedFile);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileProcess(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileProcess(e.target.files[0]);
+    }
+  };
+
+  const handleFetchJob = () => {
+    setUrlError('');
+    setUrlSuccess('');
+    
+    if (!jobUrl || !jobUrl.startsWith('http')) {
+      setUrlError('Please enter a valid URL starting with http:// or https://');
+      return;
+    }
+
+    if (jobUrl.toLowerCase().includes('linkedin.com')) {
+      setUrlError('LinkedIn blocks automated access. Please copy-paste manually.');
+      return;
+    }
+
+    setIsFetching(true);
+    // Simulate fetch delay
+    setTimeout(() => {
+      setIsFetching(false);
+      setJobDescription('This is a simulated fetched job description. We are looking for a skilled candidate with experience in React, TypeScript, and Tailwind CSS. You will be responsible for building responsive UI components and integrating with backend APIs.');
+      setUrlSuccess('Job details fetched successfully');
+    }, 1500);
+  };
+
   return (
     <div>
       {/* Input Section */}
-      <div className="lg:grid lg:grid-cols-2 gap-6">
+      <div className="lg:grid lg:grid-cols-2 gap-8">
         <div>
           <div className="mb-4">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{COPY.UPLOAD.headline}</h2>
             <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.UPLOAD.supportText}</p>
           </div>
+
+          {/* File Upload Dropzone */}
+          <div 
+            className={`mb-6 border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+              isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-neutral-300 dark:border-neutral-700 hover:border-primary-400'
+            }`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+            onDrop={handleDrop}
+          >
+            {file ? (
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-medium text-neutral-900 dark:text-white mb-1">{file.name}</p>
+                <p className="text-xs text-green-600 font-medium mb-4 flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" /> Uploaded successfully
+                </p>
+                <button 
+                  onClick={() => setFile(null)}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                >
+                  <X className="w-4 h-4" /> Remove file
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-full flex items-center justify-center mb-3">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <p className="text-base font-bold text-neutral-900 dark:text-white mb-1">Upload your resume</p>
+                <p className="text-sm text-neutral-500 mb-4">Supports PDF and DOCX files up to 5MB</p>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  className="hidden" 
+                  accept=".pdf,.docx" 
+                  onChange={handleFileChange} 
+                />
+                <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                  Choose File
+                </Button>
+                {fileError && (
+                  <p className="mt-3 text-sm text-red-600 flex items-center gap-1 justify-center">
+                    <AlertCircle className="w-4 h-4" /> {fileError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="relative flex items-center py-2 mb-6">
+            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+            <span className="flex-shrink-0 mx-4 text-neutral-400 text-sm font-medium">or paste your resume text below</span>
+            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+          </div>
+
           <Textarea
             label="Your Resume Text"
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
             rows={8}
             placeholder="Paste your resume text here..."
-            helperText={COPY.UPLOAD.instruction}
           />
         </div>
-        <div className="mt-4 lg:mt-0">
+
+        <div className="mt-8 lg:mt-0">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{COPY.JOB_MATCH.headline}</h2>
             <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.JOB_MATCH.supportText}</p>
           </div>
+
+          {/* Job URL Fetcher */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Paste job link</label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="url"
+                value={jobUrl}
+                onChange={(e) => {
+                  setJobUrl(e.target.value);
+                  setUrlError('');
+                  setUrlSuccess('');
+                }}
+                placeholder="Paste job URL from Naukri, LinkedIn, Indeed..."
+                className="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <Button variant="secondary" onClick={handleFetchJob} disabled={isFetching}>
+                {isFetching ? 'Fetching...' : 'Fetch Job Details'}
+              </Button>
+            </div>
+            {urlError && (
+              <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" /> {urlError}
+              </p>
+            )}
+            {urlSuccess && (
+              <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> {urlSuccess}
+              </p>
+            )}
+          </div>
+
+          <div className="relative flex items-center py-2 mb-6">
+            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+            <span className="flex-shrink-0 mx-4 text-neutral-400 text-sm font-medium">or paste the job description below</span>
+            <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700"></div>
+          </div>
+
           <Textarea
             label="Job Description"
             value={jobDescription}
@@ -50,10 +209,13 @@ const ScannerPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mt-6">
-        <Button variant="primary" className="w-full sm:w-auto" onClick={handleScan}>
-          {COPY.JOB_MATCH.cta}
+      <div className="mt-10 mb-4 border-t border-neutral-200 dark:border-neutral-800 pt-8">
+        <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold" onClick={handleScan}>
+          Scan My Resume
         </Button>
+        <p className="mt-3 text-sm text-neutral-500 max-w-2xl">
+          We will compare your resume against the job description and show your readiness score, matched keywords, missing keywords, and what to fix before you apply.
+        </p>
       </div>
 
       {/* Results Section */}
