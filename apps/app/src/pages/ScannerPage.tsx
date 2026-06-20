@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import Badge from '../../../../packages/shared/src/components/Badge';
 import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
 import { COPY } from '@nextstep/shared';
-import { extractTextFromFile } from '../utils/documentParser';
+import { extractTextFromFile, type ParseResult } from '../utils/documentParser';
 import { analyzeResume, type ATSScanResult } from '../services/aiScanner';
 
 const ScannerPage: React.FC = () => {
@@ -29,10 +29,12 @@ const ScannerPage: React.FC = () => {
   // AI Scan State
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
+  const [parseWarning, setParseWarning] = useState('');
   const [scanResult, setScanResult] = useState<ATSScanResult | null>(null);
 
   const handleScan = async () => {
     setScanError('');
+    setParseWarning('');
     setShowResults(false);
 
     if (!file && !resumeText.trim()) {
@@ -40,16 +42,33 @@ const ScannerPage: React.FC = () => {
       return;
     }
 
-    if (!jobDescription.trim()) {
-      setScanError('Please add a job description to continue');
-      return;
-    }
-
     setIsScanning(true);
     try {
       let finalResumeText = resumeText;
+
+      // If the user uploaded a file but didn't paste text, extract from the file
       if (file && !resumeText.trim()) {
-        finalResumeText = await extractTextFromFile(file);
+        const parseResult: ParseResult = await extractTextFromFile(file);
+
+        if (parseResult.warning && !parseResult.text) {
+          // Complete parse failure — show soft warning, don't block
+          setParseWarning(parseResult.warning);
+          setIsScanning(false);
+          return;
+        }
+
+        if (parseResult.warning && parseResult.text) {
+          // Partial success — proceed with whatever text we got
+          setParseWarning(parseResult.warning);
+        }
+
+        finalResumeText = parseResult.text;
+      }
+
+      if (!finalResumeText.trim()) {
+        setScanError('Please add your resume to continue');
+        setIsScanning(false);
+        return;
       }
 
       const result = await analyzeResume(finalResumeText, jobDescription);
@@ -242,6 +261,24 @@ const ScannerPage: React.FC = () => {
       </div>
 
       <div className="mt-10 mb-4 border-t border-neutral-200 dark:border-neutral-800 pt-8">
+        {/* Soft suggestion when no JD */}
+        {!jobDescription.trim() && (
+          <div className="mb-4 flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg max-w-2xl">
+            <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              💡 Add a job description to get a personalised match score and missing keywords.
+            </p>
+          </div>
+        )}
+
+        {/* Parse warning (soft, not blocking) */}
+        {parseWarning && (
+          <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg max-w-2xl">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 dark:text-amber-300">{parseWarning}</p>
+          </div>
+        )}
+
         <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold flex items-center justify-center gap-2" onClick={handleScan} disabled={isScanning}>
           {isScanning ? (
             <>
@@ -267,8 +304,15 @@ const ScannerPage: React.FC = () => {
           {/* Score */}
           <div className="flex justify-center mb-8">
             <div className="text-center">
-              <ScoreGauge score={scanResult.score} label="ATS Compatibility Score" />
-              <p className="mt-4 text-neutral-900 font-medium">You are {scanResult.score}/100 ready for this job</p>
+              <ScoreGauge
+                score={scanResult.score}
+                label={scanResult.mode === 'ats-match' ? 'ATS Compatibility Score' : 'Resume Quality Score'}
+              />
+              <p className="mt-4 text-neutral-900 dark:text-white font-medium">
+                {scanResult.mode === 'ats-match'
+                  ? `You are ${scanResult.score}/100 ready for this job`
+                  : `Your resume quality is ${scanResult.score}/100`}
+              </p>
               <p className="text-neutral-500 mt-1">
                 {scanResult.score >= 80 ? COPY.ATS.highScore : scanResult.score >= 50 ? COPY.ATS.midScore : COPY.ATS.lowScore}
               </p>
@@ -276,7 +320,7 @@ const ScannerPage: React.FC = () => {
           </div>
 
           {/* Details */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${scanResult.mode === 'ats-match' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             {/* Strengths */}
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-green-600 dark:text-green-400 mb-4 flex items-center gap-2">
@@ -297,25 +341,27 @@ const ScannerPage: React.FC = () => {
               </ul>
             </Card>
 
-            {/* Missing Keywords */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-                  <line x1="7" y1="7" x2="7.01" y2="7" />
-                </svg>
-                Missing Keywords
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {scanResult.missingKeywords.length > 0 ? (
-                  scanResult.missingKeywords.map((keyword, index) => (
-                    <Badge key={index}>{keyword}</Badge>
-                  ))
-                ) : (
-                  <p className="text-sm text-neutral-500">No critical missing keywords found.</p>
-                )}
-              </div>
-            </Card>
+            {/* Missing Keywords — only shown in ATS match mode */}
+            {scanResult.mode === 'ats-match' && (
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
+                  </svg>
+                  Missing Keywords
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {scanResult.missingKeywords.length > 0 ? (
+                    scanResult.missingKeywords.map((keyword, index) => (
+                      <Badge key={index}>{keyword}</Badge>
+                    ))
+                  ) : (
+                    <p className="text-sm text-neutral-500">No critical missing keywords found.</p>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {/* Suggestions */}
             <Card className="p-6">
@@ -336,7 +382,11 @@ const ScannerPage: React.FC = () => {
                     </li>
                   ))
                 ) : (
-                  <p className="text-sm text-neutral-500">Your resume perfectly matches the job description!</p>
+                  <p className="text-sm text-neutral-500">
+                    {scanResult.mode === 'ats-match'
+                      ? 'Your resume perfectly matches the job description!'
+                      : 'Your resume looks great — no major improvements needed!'}
+                  </p>
                 )}
               </ul>
             </Card>
