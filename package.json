@@ -15,7 +15,10 @@
     "build:app": "npm run build --workspace=apps/app"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.108.1",
+    "mammoth": "^1.12.0",
+    "pdfjs-dist": "^6.0.227",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

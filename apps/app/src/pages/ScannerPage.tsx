@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import Badge from '../../../../packages/shared/src/components/Badge';
 import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
-import { mockScanResult } from '../data/mockData';
 import { COPY } from '@nextstep/shared';
+import { extractTextFromFile } from '../utils/documentParser';
+import { analyzeResume, type ATSScanResult } from '../services/aiScanner';
 
 const ScannerPage: React.FC = () => {
   const [resumeText, setResumeText] = useState('');
@@ -25,9 +26,40 @@ const ScannerPage: React.FC = () => {
   const [urlError, setUrlError] = useState('');
   const [urlSuccess, setUrlSuccess] = useState('');
 
-  const handleScan = () => {
-    // TODO: Integrate with backend scanning API
-    setShowResults(true);
+  // AI Scan State
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [scanResult, setScanResult] = useState<ATSScanResult | null>(null);
+
+  const handleScan = async () => {
+    setScanError('');
+    setShowResults(false);
+
+    if (!file && !resumeText.trim()) {
+      setScanError('Please add your resume to continue');
+      return;
+    }
+
+    if (!jobDescription.trim()) {
+      setScanError('Please add a job description to continue');
+      return;
+    }
+
+    setIsScanning(true);
+    try {
+      let finalResumeText = resumeText;
+      if (file && !resumeText.trim()) {
+        finalResumeText = await extractTextFromFile(file);
+      }
+
+      const result = await analyzeResume(finalResumeText, jobDescription);
+      setScanResult(result);
+      setShowResults(true);
+    } catch (error: any) {
+      setScanError(error.message || 'An error occurred during scanning. Please try again.');
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleFileProcess = (selectedFile: File) => {
@@ -210,24 +242,35 @@ const ScannerPage: React.FC = () => {
       </div>
 
       <div className="mt-10 mb-4 border-t border-neutral-200 dark:border-neutral-800 pt-8">
-        <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold" onClick={handleScan}>
-          Scan My Resume
+        <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold flex items-center justify-center gap-2" onClick={handleScan} disabled={isScanning}>
+          {isScanning ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" /> Scanning...
+            </>
+          ) : (
+            'Scan My Resume'
+          )}
         </Button>
+        {scanError && (
+          <p className="mt-3 text-sm text-red-600 flex items-center gap-1 font-medium">
+            <AlertCircle className="w-4 h-4" /> {scanError}
+          </p>
+        )}
         <p className="mt-3 text-sm text-neutral-500 max-w-2xl">
           We will compare your resume against the job description and show your readiness score, matched keywords, missing keywords, and what to fix before you apply.
         </p>
       </div>
 
       {/* Results Section */}
-      {showResults && (
+      {showResults && scanResult && (
         <div className="mt-8">
           {/* Score */}
           <div className="flex justify-center mb-8">
             <div className="text-center">
-              <ScoreGauge score={mockScanResult.score} label="ATS Compatibility Score" />
-              <p className="mt-4 text-neutral-900 font-medium">{COPY.JOB_MATCH.resultMessage(mockScanResult.score)}</p>
+              <ScoreGauge score={scanResult.score} label="ATS Compatibility Score" />
+              <p className="mt-4 text-neutral-900 font-medium">You are {scanResult.score}/100 ready for this job</p>
               <p className="text-neutral-500 mt-1">
-                {mockScanResult.score >= 80 ? COPY.ATS.highScore : mockScanResult.score >= 50 ? COPY.ATS.midScore : COPY.ATS.lowScore}
+                {scanResult.score >= 80 ? COPY.ATS.highScore : scanResult.score >= 50 ? COPY.ATS.midScore : COPY.ATS.lowScore}
               </p>
             </div>
           </div>
@@ -243,7 +286,7 @@ const ScannerPage: React.FC = () => {
                 Strengths
               </h3>
               <ul className="space-y-2">
-                {mockScanResult.strengths.map((item, index) => (
+                {scanResult.strengths.map((item, index) => (
                   <li key={index} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 flex-shrink-0 mt-0.5">
                       <polyline points="20 6 9 17 4 12" />
@@ -264,9 +307,13 @@ const ScannerPage: React.FC = () => {
                 Missing Keywords
               </h3>
               <div className="flex flex-wrap gap-2">
-                {mockScanResult.missingKeywords.map((keyword, index) => (
-                  <Badge key={index}>{keyword}</Badge>
-                ))}
+                {scanResult.missingKeywords.length > 0 ? (
+                  scanResult.missingKeywords.map((keyword, index) => (
+                    <Badge key={index}>{keyword}</Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-neutral-500">No critical missing keywords found.</p>
+                )}
               </div>
             </Card>
 
@@ -281,12 +328,16 @@ const ScannerPage: React.FC = () => {
                 Improvement Suggestions
               </h3>
               <ul className="space-y-2">
-                {mockScanResult.suggestions.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                    <span className="text-yellow-500 flex-shrink-0">•</span>
-                    {item}
-                  </li>
-                ))}
+                {scanResult.suggestions.length > 0 ? (
+                  scanResult.suggestions.map((item, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                      <span className="text-yellow-500 flex-shrink-0">•</span>
+                      {item}
+                    </li>
+                  ))
+                ) : (
+                  <p className="text-sm text-neutral-500">Your resume perfectly matches the job description!</p>
+                )}
               </ul>
             </Card>
           </div>
