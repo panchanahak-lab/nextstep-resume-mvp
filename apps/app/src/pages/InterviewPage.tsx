@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { UploadCloud, CheckCircle, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import type { InterviewMessage } from '../../../../packages/shared/src/types';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
@@ -87,6 +88,29 @@ const InterviewPage: React.FC = () => {
   const [language, setLanguage] = useState('English');
   const [messages, setMessages] = useState<InterviewMessage[]>(mockInterviewMessages);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState('');
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setFileError(null);
+    if (!file) return;
+
+    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.pdf') && !file.name.toLowerCase().endsWith('.docx')) {
+      setFileError('Please upload a PDF or DOCX file only');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError('File is too large. Please keep it under 5MB');
+      return;
+    }
+
+    setResumeFile(file);
+  };
 
   const handleStartInterview = () => {
     setMessages([
@@ -167,6 +191,75 @@ const InterviewPage: React.FC = () => {
             <option>Malayalam</option>
           </select>
         </div>
+      </div>
+
+      {/* Resume Upload Section */}
+      <div className="mt-6 lg:max-w-3xl">
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          Your Resume <span className="text-neutral-500 font-normal">(optional but recommended)</span>
+        </label>
+        <p className="text-xs text-neutral-500 mb-3">
+          Upload your resume so the AI can ask questions based on your actual experience and background.
+        </p>
+
+        {resumeFile ? (
+          <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-2">
+                {resumeFile.name}
+                <button onClick={() => setResumeFile(null)} className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 text-xs underline focus:outline-none">Remove</button>
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Resume uploaded. AI will now personalise your interview.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="border-2 border-dashed border-neutral-300 dark:border-neutral-700 rounded-lg p-6 text-center hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+            <UploadCloud className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-neutral-900 dark:text-white">Upload Resume</p>
+            <p className="text-xs text-neutral-500 mb-4">PDF or DOCX, max 5MB</p>
+            <label className="inline-block px-4 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
+              Choose File
+              <input type="file" className="hidden" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} />
+            </label>
+            {fileError && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{fileError}</p>}
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 my-4">
+          <div className="h-px bg-neutral-200 dark:bg-neutral-700 flex-1"></div>
+          <span className="text-xs text-neutral-500">or paste your resume text below</span>
+          <div className="h-px bg-neutral-200 dark:bg-neutral-700 flex-1"></div>
+        </div>
+
+        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+          <button 
+            className="w-full flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/50 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors focus:outline-none"
+            onClick={() => setIsTextExpanded(!isTextExpanded)}
+          >
+            <span>Resume Text</span>
+            {isTextExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {isTextExpanded && (
+            <div className="p-3 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700">
+              <textarea
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                placeholder="Paste your resume text here if you prefer not to upload a file"
+                className="w-full h-32 px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              ></textarea>
+            </div>
+          )}
+        </div>
+
+        {!resumeFile && !resumeText && (
+          <div className="flex items-start gap-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              No resume added. Interview questions will be based on your job role only. Add a resume for a more personalised experience.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
