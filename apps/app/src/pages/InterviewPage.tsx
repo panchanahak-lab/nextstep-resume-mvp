@@ -1,10 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { InterviewMessage } from '../../../../packages/shared/src/types';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import InterviewChat from '../components/InterviewChat';
 import { mockInterviewMessages } from '../data/mockData';
 import { COPY } from '@nextstep/shared';
+
+const DEFAULT_ROLES = [
+  "Software Developer", "Sales Executive", "Marketing Manager", "HR Manager", 
+  "Teacher / Lecturer", "Accountant", "Civil Engineer", "Mechanical Engineer", 
+  "Electrical Engineer", "Project Manager", "Data Analyst", "Operations Manager", 
+  "Business Development Executive", "Customer Support Executive", "Content Writer", 
+  "Nurse / Healthcare Worker", "Graphic Designer", "Fresher / Any Role"
+];
+
+function RoleAutocomplete({ value, onChange }: { value: string, onChange: (val: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredRoles = DEFAULT_ROLES.filter(role => role.toLowerCase().includes(value.toLowerCase()));
+
+  const handleSelect = (role: string) => {
+    onChange(role);
+    setIsOpen(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.value);
+    setIsOpen(true);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onFocus={() => setIsOpen(true)}
+        placeholder="Type your job role or search from suggestions"
+        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+      />
+      {isOpen && (
+        <ul className="absolute z-10 w-full mt-1 max-h-60 overflow-auto bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg">
+          {filteredRoles.length > 0 ? (
+            filteredRoles.map((r) => (
+              <li
+                key={r}
+                onClick={() => handleSelect(r)}
+                className="px-3 py-2 text-sm text-neutral-900 dark:text-white hover:bg-primary-50 dark:hover:bg-primary-900 cursor-pointer"
+              >
+                {r}
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic">
+              Use custom role: "{value}"
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 const mockQuestions = [
   'Can you walk me through a recent data center cooling project you managed?',
@@ -72,14 +139,9 @@ const InterviewPage: React.FC = () => {
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Role</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClasses}>
-            <option>Mechanical Engineer</option>
-            <option>Data Center Project Engineer</option>
-            <option>Project Manager</option>
-            <option>HVAC Engineer</option>
-            <option>Electrical Engineer</option>
-          </select>
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Your Job Role</label>
+          <RoleAutocomplete value={role} onChange={setRole} />
+          <p className="text-xs text-neutral-500 mt-1">Not sure? Write the exact title from the job description you are applying for.</p>
         </div>
         <div className="flex-1">
           <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Type</label>
