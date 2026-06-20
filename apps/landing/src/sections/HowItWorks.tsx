@@ -21,25 +21,25 @@ const steps = [
 
 const HowItWorks: React.FC = () => {
   return (
-    <section id="how-it-works" className="py-24 bg-white relative overflow-hidden">
+    <section id="how-it-works" className="py-24 bg-white dark:bg-neutral-900 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-16">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white text-center mb-16">
           How It Works
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
           {/* Dashed connector line — desktop only */}
-          <div className="hidden md:block absolute top-6 left-[16.6%] right-[16.6%] h-0.5 border-t-2 border-dashed border-gray-200" />
+          <div className="hidden md:block absolute top-6 left-[16.6%] right-[16.6%] h-0.5 border-t-2 border-dashed border-gray-200 dark:border-neutral-700" />
 
           {steps.map((step) => (
             <div key={step.number} className="flex flex-col items-center text-center relative z-10 group">
-              <div className="w-14 h-14 rounded-full bg-white border-4 border-gray-50 text-blue-600 flex items-center justify-center font-bold text-xl shadow-lg mb-6 group-hover:scale-110 group-hover:bg-blue-600 group-hover:border-blue-100 group-hover:text-white transition-all duration-300">
+              <div className="w-14 h-14 rounded-full bg-white dark:bg-neutral-900 border-4 border-gray-50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xl shadow-lg mb-6 group-hover:scale-110 group-hover:bg-blue-600 group-hover:border-blue-100 group-hover:text-white transition-all duration-300">
                 {step.number}
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
                 {step.title}
               </h3>
-              <p className="text-gray-600 max-w-xs leading-relaxed">
+              <p className="text-gray-600 dark:text-neutral-400 max-w-xs leading-relaxed">
                 {step.description}
               </p>
             </div>

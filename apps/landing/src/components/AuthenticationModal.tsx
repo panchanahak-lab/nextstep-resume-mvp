@@ -44,25 +44,25 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-neutral-400 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
         
         <div className="p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             {initialMode === 'login' ? 'Welcome back' : 'Create an account'}
           </h2>
-          <p className="text-gray-600 mb-8">
+          <p className="text-gray-600 dark:text-neutral-400 mb-8">
             Create an account to save your resumes, unlock your first CV scan, and track interview results.
           </p>
 
           <div className="space-y-4">
             {error && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
@@ -72,7 +72,7 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen, onClo
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 dark:border-neutral-600 rounded-xl hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors font-medium text-gray-700 dark:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-70"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -84,7 +84,7 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen, onClo
             </button>
           </div>
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          <p className="mt-8 text-center text-sm text-gray-500 dark:text-neutral-500">
             By continuing, you agree to NextStep's Terms of Service and Privacy Policy.
           </p>
         </div>

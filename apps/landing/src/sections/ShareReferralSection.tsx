@@ -5,7 +5,7 @@ const ShareReferralSection: React.FC = () => {
   return (
     <section className="py-20 bg-blue-600 text-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/200 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
           <Gift className="w-8 h-8 text-white" />
         </div>
         <h2 className="text-3xl font-bold mb-4">
@@ -14,7 +14,7 @@ const ShareReferralSection: React.FC = () => {
         <p className="text-blue-100 text-lg mb-8 max-w-xl mx-auto">
           Share NextStep with friends and unlock included ATS scans for both of you.
         </p>
-        <button className="bg-white text-blue-600 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-50 transition-colors shadow-xl">
+        <button className="bg-white dark:bg-neutral-900 text-blue-600 dark:text-blue-400 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-50 dark:bg-neutral-950 transition-colors shadow-xl">
           Share on WhatsApp
         </button>
       </div>

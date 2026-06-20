@@ -18,7 +18,7 @@ import Footer from '../sections/Footer';
 
 const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen font-sans antialiased bg-white selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen font-sans antialiased bg-white dark:bg-neutral-900 selection:bg-blue-100 selection:text-blue-900">
       <Navbar />
       <main>
         <Hero />

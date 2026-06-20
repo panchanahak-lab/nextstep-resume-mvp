@@ -3,57 +3,57 @@ import { Check } from 'lucide-react';
 
 const Pricing: React.FC = () => {
   return (
-    <section id="pricing" className="py-24 bg-gray-50 border-t border-gray-100">
+    <section id="pricing" className="py-24 bg-gray-50 dark:bg-neutral-950 border-t border-gray-100 dark:border-neutral-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Simple, transparent pricing</h2>
-          <p className="text-lg text-gray-600 mb-6">Create an account first. Your first ATS scan is included after signup.</p>
-          <p className="text-sm text-gray-500 font-medium">More scans and interviews are available through plans or pay-per-use. Cancel anytime.</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">Simple, transparent pricing</h2>
+          <p className="text-lg text-gray-600 dark:text-neutral-400 mb-6">Create an account first. Your first ATS scan is included after signup.</p>
+          <p className="text-sm text-gray-500 dark:text-neutral-500 font-medium">More scans and interviews are available through plans or pay-per-use. Cancel anytime.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {/* Account Required Plan */}
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 flex flex-col">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Account Required</h3>
-            <p className="text-gray-500 text-sm mb-6">Perfect to get started</p>
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-sm border border-gray-200 dark:border-neutral-700 flex flex-col">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Account Required</h3>
+            <p className="text-gray-500 dark:text-neutral-500 text-sm mb-6">Perfect to get started</p>
             <div className="mb-6">
-              <span className="text-4xl font-extrabold text-gray-900">₹0</span>
+              <span className="text-4xl font-extrabold text-gray-900 dark:text-white">₹0</span>
             </div>
             <ul className="space-y-4 mb-8 flex-1">
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> 1 resume
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Included ATS scan for new users
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Limited text interview
               </li>
             </ul>
-            <button className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors">
+            <button className="w-full py-3 rounded-xl font-bold border-2 border-blue-100 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 transition-colors">
               Create Account
             </button>
           </div>
 
           {/* Pay Per Use Plan */}
-          <div className="bg-white rounded-3xl p-8 shadow-xl border-2 border-blue-500 flex flex-col relative transform md:-translate-y-4">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-xl border-2 border-blue-500 flex flex-col relative transform md:-translate-y-4">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-50 dark:bg-blue-900/200 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
               Most Popular
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Pay Per Use</h3>
-            <p className="text-gray-500 text-sm mb-6">Pay only when you need</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Pay Per Use</h3>
+            <p className="text-gray-500 dark:text-neutral-500 text-sm mb-6">Pay only when you need</p>
             <div className="mb-6 flex items-baseline">
-              <span className="text-4xl font-extrabold text-gray-900">₹99</span>
-              <span className="text-gray-500 ml-1">/use</span>
+              <span className="text-4xl font-extrabold text-gray-900 dark:text-white">₹99</span>
+              <span className="text-gray-500 dark:text-neutral-500 ml-1">/use</span>
             </div>
             <ul className="space-y-4 mb-8 flex-1">
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Resume PDF download
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> One premium ATS scan
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> One live voice interview
               </li>
             </ul>
@@ -63,24 +63,24 @@ const Pricing: React.FC = () => {
           </div>
 
           {/* Pro Plan */}
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-200 flex flex-col">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Pro</h3>
-            <p className="text-gray-500 text-sm mb-6">For active job seekers</p>
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-sm border border-gray-200 dark:border-neutral-700 flex flex-col">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Pro</h3>
+            <p className="text-gray-500 dark:text-neutral-500 text-sm mb-6">For active job seekers</p>
             <div className="mb-6 flex items-baseline">
-              <span className="text-4xl font-extrabold text-gray-900">₹499</span>
-              <span className="text-gray-500 ml-1">/month</span>
+              <span className="text-4xl font-extrabold text-gray-900 dark:text-white">₹499</span>
+              <span className="text-gray-500 dark:text-neutral-500 ml-1">/month</span>
             </div>
             <ul className="space-y-4 mb-8 flex-1">
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Unlimited resumes
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Unlimited ATS scans
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Unlimited mock interviews
               </li>
-              <li className="flex items-start gap-3 text-gray-600">
+              <li className="flex items-start gap-3 text-gray-600 dark:text-neutral-400">
                 <Check className="w-5 h-5 text-blue-500 shrink-0" /> Saved history
               </li>
             </ul>

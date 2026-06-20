@@ -5,7 +5,7 @@ import DashboardSection from '../sections/DashboardSection';
 
 const DashboardPage: React.FC = () => {
   return (
-    <div className="min-h-screen font-sans antialiased bg-gray-50 flex flex-col">
+    <div className="min-h-screen font-sans antialiased bg-gray-50 dark:bg-neutral-950 flex flex-col">
       <Navbar />
       <main className="flex-grow">
         <DashboardSection />

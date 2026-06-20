@@ -3,24 +3,24 @@ import { Sparkles, ArrowRight } from 'lucide-react';
 
 const ResumeBuilderSection: React.FC = () => {
   return (
-    <section className="py-24 bg-gray-50 border-t border-gray-100">
+    <section className="py-24 bg-gray-50 dark:bg-neutral-950 border-t border-gray-100 dark:border-neutral-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
               Never made a resume before? Perfect. This is built for you.
             </h2>
-            <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+            <p className="text-lg text-gray-600 dark:text-neutral-400 mb-8 leading-relaxed">
               Just fill what you know. We will handle the rest.
             </p>
             
             <div className="space-y-6 mb-8">
-              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
-                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+              <div className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm relative">
+                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> AI Summary
                 </div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Professional Summary</label>
-                <div className="w-full h-24 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-400">
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-200 mb-2">Professional Summary</label>
+                <div className="w-full h-24 bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-700 rounded-lg p-3 text-sm text-gray-400">
                   Tell us about yourself. We will write it professionally...
                 </div>
               </div>
@@ -33,7 +33,7 @@ const ResumeBuilderSection: React.FC = () => {
           </div>
 
           <div className="lg:w-1/2 w-full">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 border border-gray-100 aspect-[1/1.2] flex flex-col relative overflow-hidden">
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl p-6 border border-gray-100 dark:border-neutral-800 aspect-[1/1.2] flex flex-col relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
               <div className="text-center mb-6 mt-4">
                 <div className="h-6 w-48 bg-gray-800 rounded mx-auto mb-2"></div>

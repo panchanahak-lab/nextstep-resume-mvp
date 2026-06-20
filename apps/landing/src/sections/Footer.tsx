@@ -52,7 +52,7 @@ const Footer: React.FC = () => {
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
+        <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-neutral-500">
           <p>Built in India, for India.</p>
           <div className="flex items-center gap-4">
             <p>© {new Date().getFullYear()} NextStep. All rights reserved.</p>

@@ -6,8 +6,8 @@ const DashboardSection: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Welcome back, User!</h1>
-          <p className="text-gray-600">Your career readiness at a glance.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome back, User!</h1>
+          <p className="text-gray-600 dark:text-neutral-400">Your career readiness at a glance.</p>
         </div>
         <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm self-start md:self-end">
           Upgrade to Pro
@@ -15,28 +15,28 @@ const DashboardSection: React.FC = () => {
       </div>
 
       <div className="grid md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
-          <div className="flex items-center gap-3 mb-4 text-gray-600 font-medium">
+        <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-700 flex flex-col">
+          <div className="flex items-center gap-3 mb-4 text-gray-600 dark:text-neutral-400 font-medium">
             <FileText className="w-5 h-5 text-blue-500" /> Saved Resumes
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-1">0</div>
-          <p className="text-sm text-gray-500 mt-auto">Create your first resume</p>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">0</div>
+          <p className="text-sm text-gray-500 dark:text-neutral-500 mt-auto">Create your first resume</p>
         </div>
         
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
-          <div className="flex items-center gap-3 mb-4 text-gray-600 font-medium">
+        <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-700 flex flex-col">
+          <div className="flex items-center gap-3 mb-4 text-gray-600 dark:text-neutral-400 font-medium">
             <ScanSearch className="w-5 h-5 text-green-500" /> ATS Scans
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-1">0</div>
-          <p className="text-sm text-gray-500 mt-auto">Upload to scan</p>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">0</div>
+          <p className="text-sm text-gray-500 dark:text-neutral-500 mt-auto">Upload to scan</p>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
-          <div className="flex items-center gap-3 mb-4 text-gray-600 font-medium">
+        <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-700 flex flex-col">
+          <div className="flex items-center gap-3 mb-4 text-gray-600 dark:text-neutral-400 font-medium">
             <UserSquare2 className="w-5 h-5 text-purple-500" /> Interviews
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-1">0</div>
-          <p className="text-sm text-gray-500 mt-auto">Practice today</p>
+          <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">0</div>
+          <p className="text-sm text-gray-500 dark:text-neutral-500 mt-auto">Practice today</p>
         </div>
 
         <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-2xl shadow-sm border border-gray-700 flex flex-col text-white">
@@ -48,44 +48,44 @@ const DashboardSection: React.FC = () => {
         </div>
       </div>
 
-      <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <button className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all group text-left">
+        <button className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 hover:border-blue-300 hover:shadow-md transition-all group text-left">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <FileText className="w-5 h-5" />
             </div>
-            <span className="font-semibold text-gray-900">Create Resume</span>
+            <span className="font-semibold text-gray-900 dark:text-white">Create Resume</span>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
         </button>
 
-        <button className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:shadow-md transition-all group text-left">
+        <button className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 hover:border-green-300 hover:shadow-md transition-all group text-left">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex items-center justify-center">
               <UploadCloud className="w-5 h-5" />
             </div>
-            <span className="font-semibold text-gray-900">Upload Resume</span>
+            <span className="font-semibold text-gray-900 dark:text-white">Upload Resume</span>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-green-500 transition-colors" />
         </button>
 
-        <button className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-yellow-300 hover:shadow-md transition-all group text-left">
+        <button className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 hover:border-yellow-300 hover:shadow-md transition-all group text-left">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-50 text-yellow-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 flex items-center justify-center">
               <ScanSearch className="w-5 h-5" />
             </div>
-            <span className="font-semibold text-gray-900">Scan Resume</span>
+            <span className="font-semibold text-gray-900 dark:text-white">Scan Resume</span>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-yellow-500 transition-colors" />
         </button>
 
-        <button className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all group text-left">
+        <button className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 hover:border-purple-300 hover:shadow-md transition-all group text-left">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <UserSquare2 className="w-5 h-5" />
             </div>
-            <span className="font-semibold text-gray-900">Start Interview</span>
+            <span className="font-semibold text-gray-900 dark:text-white">Start Interview</span>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-purple-500 transition-colors" />
         </button>
