@@ -32,7 +32,7 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen, onClo
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: absoluteUrlFor('/dashboard'),
+        redirectTo: absoluteUrlFor('/app/dashboard'),
       },
     });
 
