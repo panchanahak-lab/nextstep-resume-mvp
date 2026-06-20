@@ -12,7 +12,7 @@ const ShareReferralSection: React.FC = () => {
           Help your friends get hired too.
         </h2>
         <p className="text-blue-100 text-lg mb-8 max-w-xl mx-auto">
-          Share NextStep with friends and unlock free ATS scans for both of you.
+          Share NextStep with friends and unlock included ATS scans for both of you.
         </p>
         <button className="bg-white text-blue-600 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-50 transition-colors shadow-xl">
           Share on WhatsApp

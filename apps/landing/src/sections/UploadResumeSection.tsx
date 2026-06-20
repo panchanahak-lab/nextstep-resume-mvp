@@ -18,8 +18,11 @@ const UploadResumeSection: React.FC = () => {
           
           <div className="flex flex-col items-center gap-4">
             <button className="bg-blue-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 w-full sm:w-auto">
-              Upload Resume
+              Create Account to Scan CV
             </button>
+            <p className="text-sm text-gray-500">
+              Create an account to unlock your first included CV scan.
+            </p>
             <p className="text-sm text-gray-500 font-medium">
               PDF and DOCX supported.
             </p>

@@ -57,7 +57,7 @@ const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen, onClo
             {initialMode === 'login' ? 'Welcome back' : 'Create an account'}
           </h2>
           <p className="text-gray-600 mb-8">
-            Continue with Google to save your resumes, unlock your first CV scan, and track interview results.
+            Create an account to save your resumes, unlock your first CV scan, and track interview results.
           </p>
 
           <div className="space-y-4">
