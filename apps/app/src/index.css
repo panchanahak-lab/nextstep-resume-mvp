@@ -5,3 +5,164 @@
 body {
   @apply bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors duration-200;
 }
+
+.app-shell {
+  --app-bg: #071016;
+  --app-panel: rgba(17, 29, 40, 0.86);
+  --app-panel-solid: #111d28;
+  --app-text: #f8fbff;
+  --app-muted: #aeb9c7;
+  --app-line: rgba(214, 231, 255, 0.16);
+  --app-blue: #2874ff;
+  --app-blue-soft: #69a4ff;
+  --app-green: #5fde9a;
+  --app-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 6%, rgba(41, 113, 255, 0.2), transparent 26rem),
+    radial-gradient(circle at 86% 10%, rgba(63, 207, 142, 0.11), transparent 24rem),
+    linear-gradient(135deg, var(--app-bg), #020609 74%);
+  color: var(--app-text);
+}
+
+html:not(.dark) .app-shell {
+  --app-bg: #f6f9fc;
+  --app-panel: rgba(255, 255, 255, 0.92);
+  --app-panel-solid: #ffffff;
+  --app-text: #0c1726;
+  --app-muted: #586779;
+  --app-line: rgba(20, 42, 69, 0.14);
+  --app-shadow: 0 22px 60px rgba(29, 55, 91, 0.14);
+  background:
+    radial-gradient(circle at 18% 6%, rgba(41, 113, 255, 0.14), transparent 26rem),
+    radial-gradient(circle at 86% 10%, rgba(63, 207, 142, 0.12), transparent 24rem),
+    linear-gradient(135deg, var(--app-bg), #ffffff 74%);
+}
+
+.app-topbar,
+.app-sidebar,
+.app-panel {
+  border: 1px solid var(--app-line);
+  background: var(--app-panel);
+  box-shadow: var(--app-shadow);
+  backdrop-filter: blur(22px);
+}
+
+.app-topbar {
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  box-shadow: none;
+}
+
+.app-sidebar {
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background:
+    linear-gradient(180deg, rgba(17, 29, 40, 0.96), rgba(8, 15, 22, 0.94));
+}
+
+html:not(.dark) .app-sidebar {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+html:not(.dark) .app-nav-link:hover {
+  color: var(--app-text);
+}
+
+.app-logo-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--app-blue) 58%, var(--app-line));
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 34% 26%, var(--app-green), transparent 34%),
+    linear-gradient(145deg, var(--app-blue), #0a2c73);
+  color: #fff;
+  font-weight: 900;
+}
+
+.app-nav-link {
+  color: var(--app-muted);
+}
+
+.app-nav-link.active {
+  background: linear-gradient(135deg, var(--app-blue), #1558d6);
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(40, 116, 255, 0.26);
+}
+
+.app-hero-card {
+  border: 1px solid var(--app-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-blue) 22%, var(--app-panel)), var(--app-panel)),
+    var(--app-panel);
+  box-shadow: var(--app-shadow);
+}
+
+.app-card {
+  border: 1px solid var(--app-line) !important;
+  background: var(--app-panel) !important;
+  box-shadow: var(--app-shadow) !important;
+  backdrop-filter: blur(22px);
+}
+
+.app-card-soft {
+  border: 1px solid var(--app-line) !important;
+  background: color-mix(in srgb, var(--app-panel) 82%, transparent) !important;
+}
+
+.app-muted {
+  color: var(--app-muted);
+}
+
+.app-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-panel);
+  color: var(--app-blue-soft);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-action-card {
+  border: 1px solid var(--app-line);
+  border-radius: 16px;
+  background: var(--app-panel);
+  padding: 18px;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.app-action-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--app-blue) 58%, var(--app-line));
+}
+
+.app-icon-tile {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-blue) 18%, transparent);
+  color: var(--app-blue-soft);
+}
+
+.app-green {
+  color: var(--app-green);
+}
+
+@media (max-width: 1024px) {
+  .app-sidebar {
+    box-shadow: var(--app-shadow);
+  }
+}

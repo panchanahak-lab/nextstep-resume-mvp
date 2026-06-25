@@ -84,10 +84,53 @@ const DashboardPage: React.FC = () => {
   }, []);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">{COPY.DASHBOARD.welcome}</h1>
-        <p className="text-neutral-600 dark:text-neutral-400 mt-1">{COPY.DASHBOARD.supportText}</p>
+    <div className="space-y-8">
+      <section className="app-hero-card p-6 lg:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <span className="app-pill">AI-powered career readiness</span>
+            <h1 className="mt-5 max-w-3xl text-3xl font-extrabold leading-tight text-neutral-950 dark:text-white sm:text-4xl lg:text-5xl">
+              Welcome back. Your next step is ready.
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 app-muted">
+              Keep building from the same flow you started on the landing page: improve your resume, scan it for ATS, and practice interviews before applying.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button variant="primary" size="lg" onClick={() => navigate('/scanner')}>Scan Resume</Button>
+              <Button variant="secondary" size="lg" onClick={() => navigate('/interview')}>Start AI Mock Interview</Button>
+            </div>
+          </div>
+
+          <div className="app-panel rounded-2xl p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold app-muted">Career score preview</p>
+                <p className="mt-1 text-4xl font-extrabold text-neutral-950 dark:text-white">72<span className="text-lg app-muted">/100</span></p>
+              </div>
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-primary-600 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3">
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="text-sm app-muted">Resume readiness</span>
+                <strong className="app-green">Good start</strong>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="text-sm app-muted">Interview practice</span>
+                <strong className="text-primary-300">{loading ? '-' : stats.interviews} done</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div>
+        <h2 className="text-lg font-bold text-neutral-950 dark:text-white">Progress overview</h2>
+        <p className="mt-1 app-muted">{COPY.DASHBOARD.supportText}</p>
       </div>
 
       {/* Stats Grid */}
@@ -95,6 +138,7 @@ const DashboardPage: React.FC = () => {
         <StatCard
           title="Resumes Created"
           value={localStorage.getItem('nextstep_resume') ? 1 : 0}
+          className="app-card"
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -105,6 +149,7 @@ const DashboardPage: React.FC = () => {
         <StatCard
           title="Resumes Scanned"
           value={loading ? '-' : stats.scans}
+          className="app-card"
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
@@ -115,6 +160,7 @@ const DashboardPage: React.FC = () => {
         <StatCard
           title="Mock Interviews"
           value={loading ? '-' : stats.interviews}
+          className="app-card"
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -124,6 +170,7 @@ const DashboardPage: React.FC = () => {
         <StatCard
           title="Current Package"
           value="Basic"
+          className="app-card"
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -136,9 +183,9 @@ const DashboardPage: React.FC = () => {
 
       {/* Career Tools */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-5 lg:col-span-2 bg-gradient-to-br from-primary-50 to-white dark:from-primary-950/40 dark:to-neutral-900 border-primary-100 dark:border-primary-900">
+        <Card className="app-card p-5 lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-white">
+            <div className="app-icon-tile flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 <path d="M8 10h.01" />
@@ -147,9 +194,9 @@ const DashboardPage: React.FC = () => {
               </svg>
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">AI Mock Interview</p>
-              <h2 className="mt-1 text-xl font-bold text-neutral-900 dark:text-white">Practice interview questions for your target role</h2>
-              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="text-sm font-semibold text-primary-600 dark:text-primary-300">AI Mock Interview</p>
+              <h2 className="mt-1 text-xl font-bold text-neutral-950 dark:text-white">Practice interview questions for your target role</h2>
+              <p className="mt-2 text-sm app-muted">
                 Choose your role, upload your resume, answer realistic questions, and get a score with improvement tips.
               </p>
             </div>
@@ -159,9 +206,9 @@ const DashboardPage: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="p-5">
-          <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Interview history</h3>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+        <Card className="app-card p-5">
+          <h3 className="text-base font-semibold text-neutral-950 dark:text-white">Interview history</h3>
+          <p className="mt-2 text-sm app-muted">
             {loading ? 'Loading...' : `${stats.interviews} completed practice round${stats.interviews === 1 ? '' : 's'}`}
           </p>
           <Button variant="secondary" className="mt-4 w-full" onClick={() => navigate('/interview')}>
@@ -172,29 +219,53 @@ const DashboardPage: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => navigate('/builder')}>{COPY.BUTTONS.RESUME.build}</Button>
-          <Button variant="secondary" onClick={() => navigate('/scanner')}>{COPY.BUTTONS.RESUME.scan}</Button>
-          <Button variant="secondary" onClick={() => navigate('/interview')}>{COPY.BUTTONS.INTERVIEW.start}</Button>
+        <h2 className="text-lg font-bold text-neutral-950 dark:text-white mb-4">Quick Actions</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <button className="app-action-card text-left" type="button" onClick={() => navigate('/builder')}>
+            <span className="app-icon-tile mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </span>
+            <strong className="block text-neutral-950 dark:text-white">{COPY.BUTTONS.RESUME.build}</strong>
+            <span className="mt-1 block text-sm app-muted">Create a polished resume with guided sections.</span>
+          </button>
+          <button className="app-action-card text-left" type="button" onClick={() => navigate('/scanner')}>
+            <span className="app-icon-tile mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <strong className="block text-neutral-950 dark:text-white">{COPY.BUTTONS.RESUME.scan}</strong>
+            <span className="mt-1 block text-sm app-muted">Find ATS gaps and improve your match score.</span>
+          </button>
+          <button className="app-action-card text-left" type="button" onClick={() => navigate('/interview')}>
+            <span className="app-icon-tile mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+            <strong className="block text-neutral-950 dark:text-white">{COPY.BUTTONS.INTERVIEW.start}</strong>
+            <span className="mt-1 block text-sm app-muted">Practice realistic questions and save results.</span>
+          </button>
         </div>
       </div>
 
       {/* Recent Activity */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">{COPY.DASHBOARD.recentActivity}</h2>
-        <Card className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <h2 className="text-lg font-bold text-neutral-950 dark:text-white mb-4">{COPY.DASHBOARD.recentActivity}</h2>
+        <Card className="app-card divide-y divide-white/10">
           {loading ? (
-            <div className="p-8 text-center text-neutral-500">Loading activity...</div>
+            <div className="p-8 text-center app-muted">Loading activity...</div>
           ) : activities.length > 0 ? (
             activities.map((item, index) => (
               <div
                 key={item.id}
-                className={`flex items-start gap-4 p-4 ${
-                  index % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50 dark:bg-neutral-900/50'
-                }`}
+                className={`flex items-start gap-4 p-4 ${index % 2 === 0 ? 'bg-white/0' : 'bg-white/5'}`}
               >
-                <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                <div className="app-icon-tile flex-shrink-0 w-10 h-10">
                   {item.type === 'scan' && (
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="11" cy="11" r="8" />
@@ -208,14 +279,14 @@ const DashboardPage: React.FC = () => {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{item.title}</p>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.description}</p>
+                  <p className="text-sm font-semibold text-neutral-950 dark:text-white">{item.title}</p>
+                  <p className="text-sm app-muted">{item.description}</p>
                 </div>
-                <span className="text-xs text-neutral-400 dark:text-neutral-500 whitespace-nowrap">{item.date}</span>
+                <span className="text-xs app-muted whitespace-nowrap">{item.date}</span>
               </div>
             ))
           ) : (
-             <div className="p-8 text-center text-neutral-500">No recent activity found. Start a mock interview or scan a resume!</div>
+             <div className="p-8 text-center app-muted">No recent activity found. Start a mock interview or scan a resume!</div>
           )}
         </Card>
       </div>

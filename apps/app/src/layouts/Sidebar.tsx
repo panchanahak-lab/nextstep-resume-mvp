@@ -75,25 +75,28 @@ const navItems = [
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const sidebarContent = (
-    <div className="bg-neutral-900 text-white w-64 min-h-screen flex flex-col">
+    <div className="app-sidebar text-white w-64 min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="p-6 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-primary-500 inline-block" />
-        <span className="text-xl font-bold text-white">NextStep</span>
+      <div className="p-5 flex items-center gap-3">
+        <span className="app-logo-mark">N</span>
+        <div>
+          <span className="block text-xl font-bold text-neutral-950 dark:text-white">NextStep</span>
+          <span className="block text-xs app-muted">Career readiness AI</span>
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-1">
+      <nav className="flex-1 px-3 space-y-2">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+              `app-nav-link flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-primary-600 text-white'
-                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                  ? 'active'
+                  : 'hover:bg-white/10 hover:text-white dark:hover:text-white'
               }`
             }
           >
@@ -104,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </nav>
 
       {/* Logout */}
-      <div className="p-4 border-t border-neutral-800">
+      <div className="p-4 border-t border-white/10">
         <button
           onClick={async () => {
             if (window.confirm('Are you sure you want to log out?')) {
@@ -120,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               }
             }
           }}
-          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-400 hover:bg-neutral-800 hover:text-red-300 rounded-lg transition-colors"
+          className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/10 hover:text-red-200 rounded-lg transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

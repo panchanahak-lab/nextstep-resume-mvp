@@ -46,15 +46,17 @@ const DashboardShell: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+    <div className="app-shell">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:pl-64">
         <Topbar
           onMenuClick={() => setSidebarOpen(true)}
           title={pageTitle}
         />
-        <main className="p-4 lg:p-6 bg-neutral-50 dark:bg-neutral-950 min-h-[calc(100vh-4rem)] overflow-y-auto relative">
-          <Outlet />
+        <main className="min-h-[calc(100vh-4rem)] overflow-y-auto relative px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <Outlet />
+          </div>
           <AuthenticationModal 
             isOpen={authModalOpen} 
             onClose={() => {
