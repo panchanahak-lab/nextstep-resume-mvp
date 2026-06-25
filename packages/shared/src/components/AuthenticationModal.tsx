@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle, X, Loader2 } from 'lucide-react';
-import { absoluteUrlFor, getSupabaseClient, isSupabaseConfigured } from '../auth';
+import { absoluteUrlFor, getSupabaseClient, isSupabaseConfigured, signInWithGoogle } from '../auth';
 
 export interface AuthenticationModalProps {
   isOpen: boolean;
@@ -15,6 +15,14 @@ export const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setError('');
+      setSuccess('');
+    }
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -48,8 +56,7 @@ export const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen
         });
         if (signInError) throw signInError;
         onClose();
-        // optionally reload or redirect
-        window.location.href = '/dashboard';
+        window.location.href = absoluteUrlFor('/app/dashboard');
       } else if (mode === 'forgot') {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: absoluteUrlFor('/app/dashboard'),
@@ -71,16 +78,8 @@ export const AuthenticationModal: React.FC<AuthenticationModalProps> = ({ isOpen
       return;
     }
 
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: absoluteUrlFor('/app/dashboard'),
-      },
-    });
+    const { error: signInError } = await signInWithGoogle();
 
     if (signInError) {
       setError('We could not log you in with Google. Please try again.');

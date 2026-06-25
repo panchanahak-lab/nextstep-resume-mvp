@@ -31,3 +31,20 @@ export const getSupabaseClient = () => {
 export const absoluteUrlFor = (path: string) => {
   return new URL(path, window.location.origin).toString();
 };
+
+export const signInWithGoogle = async (redirectPath = '/app/dashboard') => {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return {
+      error: new Error('Google login is not configured yet. Please try again later.'),
+    };
+  }
+
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: absoluteUrlFor(redirectPath),
+    },
+  });
+};

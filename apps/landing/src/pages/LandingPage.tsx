@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, FileUp, LockKeyhole, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
-import { useTheme } from '@nextstep/shared';
+import { AuthenticationModal, signInWithGoogle, useTheme } from '@nextstep/shared';
 import markUrl from '../assets/nextstep-mark.png';
+
+type AuthMode = 'login' | 'signup';
 
 const findings = [
   {
@@ -115,7 +117,7 @@ const FindingList: React.FC = () => (
   </div>
 );
 
-const Header: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
+const Header: React.FC<{ onLogin: () => void; onSignup: () => void }> = ({ onLogin, onSignup }) => (
   <header className="ns-header">
     <Logo />
     <nav aria-label="Primary navigation">
@@ -125,14 +127,33 @@ const Header: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </nav>
     <div className="ns-header-actions">
       <ThemeSwitch />
-      <button type="button" className="ns-link-button" onClick={onUnlock}>Log in</button>
-      <button type="button" className="ns-primary-button" onClick={onUnlock}>Sign up</button>
+      <button type="button" className="ns-link-button" onClick={onLogin}>Log in</button>
+      <button type="button" className="ns-primary-button" onClick={onSignup}>Sign up</button>
     </div>
   </header>
 );
 
-const UnlockModal: React.FC<{ open: boolean; onClose: () => void; onContinue: () => void }> = ({ open, onClose, onContinue }) => {
+const UnlockModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  onContinueFree: () => void;
+  onGoogleLogin: () => Promise<void>;
+}> = ({ open, onClose, onContinueFree, onGoogleLogin }) => {
   const [selected, setSelected] = useState('scan');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+
+  const handleGoogleLogin = async () => {
+    setGoogleError('');
+    setGoogleLoading(true);
+
+    try {
+      await onGoogleLogin();
+    } catch (err: any) {
+      setGoogleError(err?.message || 'We could not log you in with Google. Please try again.');
+      setGoogleLoading(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -185,10 +206,13 @@ const UnlockModal: React.FC<{ open: boolean; onClose: () => void; onContinue: ()
 
         <div className="ns-account-bar">
           <strong>Create your free account to save your results</strong>
+          {googleError && <p role="alert">{googleError}</p>}
           <div className="ns-account-controls">
-            <button className="ns-secondary-button" type="button">Continue with Google</button>
+            <button className="ns-secondary-button" type="button" onClick={handleGoogleLogin} disabled={googleLoading}>
+              {googleLoading ? 'Connecting...' : 'Continue with Google'}
+            </button>
             <input aria-label="Email address" placeholder="Enter your email" />
-            <button className="ns-primary-button" type="button" onClick={onContinue}>Continue free</button>
+            <button className="ns-primary-button" type="button" onClick={onContinueFree}>Continue free</button>
           </div>
           <p>First scan included · No credit card needed · Your resume stays private</p>
         </div>
@@ -199,15 +223,29 @@ const UnlockModal: React.FC<{ open: boolean; onClose: () => void; onContinue: ()
 
 const LandingPage: React.FC = () => {
   const [unlockOpen, setUnlockOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const navigate = useNavigate();
 
   const openUnlock = () => setUnlockOpen(true);
   const closeUnlock = () => setUnlockOpen(false);
+  const openAuth = (mode: AuthMode) => {
+    setUnlockOpen(false);
+    setAuthMode(mode);
+    setAuthModalOpen(true);
+  };
+  const handleGoogleLogin = async () => {
+    const { error } = await signInWithGoogle();
+
+    if (error) {
+      throw error;
+    }
+  };
   const goToPayment = () => navigate('/payment');
 
   return (
     <div className="ns-page">
-      <Header onUnlock={openUnlock} />
+      <Header onLogin={() => openAuth('login')} onSignup={() => openAuth('signup')} />
       <main>
         <section className="ns-hero" id="features">
           <div className="ns-hero-copy">
@@ -303,7 +341,13 @@ const LandingPage: React.FC = () => {
         </nav>
       </footer>
 
-      <UnlockModal open={unlockOpen} onClose={closeUnlock} onContinue={goToPayment} />
+      <UnlockModal
+        open={unlockOpen}
+        onClose={closeUnlock}
+        onContinueFree={() => openAuth('signup')}
+        onGoogleLogin={handleGoogleLogin}
+      />
+      <AuthenticationModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} initialMode={authMode} />
     </div>
   );
 };

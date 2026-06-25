@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import { getSupabaseClient, AuthenticationModal } from '@nextstep/shared';
+import { absoluteUrlFor, getSupabaseClient, AuthenticationModal } from '@nextstep/shared';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -34,7 +34,7 @@ const DashboardShell: React.FC = () => {
     const supabase = getSupabaseClient();
     const { data: authListener } = supabase?.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        window.location.href = 'http://localhost:5173/';
+        window.location.href = absoluteUrlFor('/');
       } else if (event === 'SIGNED_IN') {
         setAuthModalOpen(false);
       }
@@ -62,7 +62,7 @@ const DashboardShell: React.FC = () => {
               const supabase = getSupabaseClient();
               supabase?.auth.getSession().then(({ data: { session } }) => {
                 if (!session) {
-                  window.location.href = 'http://localhost:5173/';
+                  window.location.href = absoluteUrlFor('/');
                 } else {
                   setAuthModalOpen(false);
                 }
