@@ -134,6 +134,42 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
+      {/* Career Tools */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="p-5 lg:col-span-2 bg-gradient-to-br from-primary-50 to-white dark:from-primary-950/40 dark:to-neutral-900 border-primary-100 dark:border-primary-900">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M8 10h.01" />
+                <path d="M12 10h.01" />
+                <path d="M16 10h.01" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">AI Mock Interview</p>
+              <h2 className="mt-1 text-xl font-bold text-neutral-900 dark:text-white">Practice interview questions for your target role</h2>
+              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                Choose your role, upload your resume, answer realistic questions, and get a score with improvement tips.
+              </p>
+            </div>
+            <Button variant="primary" size="lg" onClick={() => navigate('/interview')} className="sm:self-center whitespace-nowrap">
+              Start Interview
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Interview history</h3>
+          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+            {loading ? 'Loading...' : `${stats.interviews} completed practice round${stats.interviews === 1 ? '' : 's'}`}
+          </p>
+          <Button variant="secondary" className="mt-4 w-full" onClick={() => navigate('/interview')}>
+            View Practice Area
+          </Button>
+        </Card>
+      </div>
+
       {/* Quick Actions */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Quick Actions</h2>

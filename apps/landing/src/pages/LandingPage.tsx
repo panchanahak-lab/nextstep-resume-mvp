@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, FileUp, LockKeyhole, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
+import { CheckCircle2, FileUp, LockKeyhole, MessageSquareText, Mic, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
 import { AuthenticationModal, signInWithGoogle, useTheme } from '@nextstep/shared';
 import markUrl from '../assets/nextstep-mark.png';
 
@@ -241,6 +241,9 @@ const LandingPage: React.FC = () => {
       throw error;
     }
   };
+  const goToInterview = () => {
+    window.location.href = '/app/interview';
+  };
   const goToPayment = () => navigate('/payment');
 
   return (
@@ -305,6 +308,32 @@ const LandingPage: React.FC = () => {
               <div className="ns-paper-lines" />
               <strong>85/100</strong>
             </div>
+          </div>
+        </section>
+
+        <section className="ns-interview-section" aria-labelledby="interview-title">
+          <div className="ns-section-title">
+            <span>AI Mock Interview</span>
+            <h2 id="interview-title">Practice before the real interview</h2>
+            <p>Choose your role, upload your resume, answer interview-style questions, and get feedback you can use immediately.</p>
+          </div>
+          <div className="ns-interview-grid">
+            <article className="ns-interview-card">
+              <Mic className="ns-interview-icon" aria-hidden="true" />
+              <h3>Role-based practice</h3>
+              <p>Prepare for software, sales, marketing, engineering, fresher, and custom job roles.</p>
+            </article>
+            <article className="ns-interview-card">
+              <MessageSquareText className="ns-interview-icon" aria-hidden="true" />
+              <h3>Resume-aware questions</h3>
+              <p>Upload your resume so the mock interview can focus on your real experience and projects.</p>
+            </article>
+            <article className="ns-interview-card emphasized">
+              <Sparkles className="ns-interview-icon" aria-hidden="true" />
+              <h3>Actionable feedback</h3>
+              <p>See your score, strengths, and improvement areas after each practice round.</p>
+              <button className="ns-primary-button wide" type="button" onClick={goToInterview}>Start AI Mock Interview</button>
+            </article>
           </div>
         </section>
 
