@@ -12,7 +12,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('nextstep-theme');
-    return (stored === 'dark' || stored === 'light') ? stored : 'light';
+    return (stored === 'dark' || stored === 'light') ? stored : 'dark';
   });
 
   useEffect(() => {
