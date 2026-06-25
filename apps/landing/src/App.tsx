@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@nextstep/shared';
 import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
+import PaymentPage from './pages/PaymentPage';
 
 const App: React.FC = () => {
   return (
@@ -10,6 +11,7 @@ const App: React.FC = () => {
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/payment" element={<PaymentPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
         </Routes>
       </Router>
