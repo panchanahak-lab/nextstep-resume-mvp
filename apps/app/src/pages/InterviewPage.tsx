@@ -200,6 +200,7 @@ const InterviewPage: React.FC = () => {
   const captureMuteRef = useRef<GainNode | null>(null);
   const playbackContextRef = useRef<AudioContext | null>(null);
   const playbackTimeRef = useRef(0);
+  const playbackSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const speakingTimerRef = useRef<number | null>(null);
   const liveSetupCompleteRef = useRef(false);
   const liveMicPausedRef = useRef(false);
@@ -287,11 +288,23 @@ const InterviewPage: React.FC = () => {
     );
   }, []);
 
+  const sendLiveAudioStreamEnd = useCallback(() => {
+    const socket = liveSocketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !liveSetupCompleteRef.current) return;
+
+    socket.send(JSON.stringify({
+      realtimeInput: {
+        audioStreamEnd: true,
+      },
+    }));
+  }, []);
+
   const stopGeminiMic = useCallback(() => {
     liveMicPausedRef.current = true;
     setIsListening(false);
+    sendLiveAudioStreamEnd();
     markActivity();
-  }, [markActivity]);
+  }, [markActivity, sendLiveAudioStreamEnd]);
 
   const startGeminiMic = useCallback(() => {
     if (liveStatus !== 'connected') return;
@@ -311,6 +324,14 @@ const InterviewPage: React.FC = () => {
       window.clearTimeout(speakingTimerRef.current);
       speakingTimerRef.current = null;
     }
+    playbackSourcesRef.current.forEach((source) => {
+      try {
+        source.stop();
+      } catch (_) {
+        // Source may already have finished.
+      }
+    });
+    playbackSourcesRef.current = [];
 
     try {
       captureProcessorRef.current?.disconnect();
@@ -346,14 +367,8 @@ const InterviewPage: React.FC = () => {
     if (!socket || socket.readyState !== WebSocket.OPEN || !liveSetupCompleteRef.current) return;
 
     socket.send(JSON.stringify({
-      clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts: [{ text }],
-          },
-        ],
-        turnComplete: true,
+      realtimeInput: {
+        text,
       },
     }));
   }, []);
@@ -381,9 +396,13 @@ const InterviewPage: React.FC = () => {
     const source = playbackContext.createBufferSource();
     source.buffer = buffer;
     source.connect(playbackContext.destination);
+    source.onended = () => {
+      playbackSourcesRef.current = playbackSourcesRef.current.filter((item) => item !== source);
+    };
 
     const startAt = Math.max(playbackContext.currentTime + 0.02, playbackTimeRef.current);
     source.start(startAt);
+    playbackSourcesRef.current.push(source);
     playbackTimeRef.current = startAt + buffer.duration;
     setIsAiSpeaking(true);
 
@@ -425,6 +444,19 @@ const InterviewPage: React.FC = () => {
 
     const serverContent = payload.serverContent;
     if (!serverContent) return;
+
+    if (serverContent.interrupted) {
+      playbackSourcesRef.current.forEach((source) => {
+        try {
+          source.stop();
+        } catch (_) {
+          // Source may already have finished.
+        }
+      });
+      playbackSourcesRef.current = [];
+      playbackTimeRef.current = 0;
+      setIsAiSpeaking(false);
+    }
 
     const inputText = serverContent.inputTranscription?.text;
     if (inputText) {
@@ -533,12 +565,10 @@ const InterviewPage: React.FC = () => {
           const data = encodePcm16Base64(input, captureContext.sampleRate);
           activeSocket.send(JSON.stringify({
             realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType: `audio/pcm;rate=${LIVE_INPUT_RATE}`,
-                  data,
-                },
-              ],
+              audio: {
+                mimeType: `audio/pcm;rate=${LIVE_INPUT_RATE}`,
+                data,
+              },
             },
           }));
         };
