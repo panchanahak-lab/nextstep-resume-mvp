@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { UploadCloud, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, ChevronDown, ChevronUp, Clock, Loader2, Mic, MicOff, Volume2 } from 'lucide-react';
 import type { InterviewMessage } from '../../../../packages/shared/src/types';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
@@ -75,6 +75,13 @@ const mockQuestions = [
   'Describe your experience with BMS integration for HVAC systems.',
 ];
 
+type InterviewMode = 'text' | 'voice';
+
+const getSpeechRecognition = () => {
+  if (typeof window === 'undefined') return null;
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+};
+
 interface InterviewHistoryItem {
   id: string;
   created_at: string;
@@ -85,6 +92,7 @@ interface InterviewHistoryItem {
 
 const InterviewPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'interview' | 'history'>('interview');
+  const [interviewMode, setInterviewMode] = useState<InterviewMode>('text');
   
   const [role, setRole] = useState('Mechanical Engineer');
   const [difficulty, setDifficulty] = useState<'Basic' | 'Moderate' | 'High'>('Moderate');
@@ -111,6 +119,13 @@ const InterviewPage: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<InterviewHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [voiceError, setVoiceError] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  const voiceSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognition()) && 'speechSynthesis' in window;
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -140,6 +155,103 @@ const InterviewPage: React.FC = () => {
     } finally {
       setLoadingHistory(false);
     }
+  };
+
+  const speakText = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language === 'Hindi' ? 'hi-IN' : language === 'Odia' ? 'or-IN' : 'en-US';
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }, [language]);
+
+  const latestInterviewerMessage = [...messages].reverse().find((message) => message.role === 'interviewer');
+
+  useEffect(() => {
+    if (interviewMode === 'voice' && isStarted && latestInterviewerMessage) {
+      speakText(latestInterviewerMessage.content);
+    }
+  }, [interviewMode, isStarted, latestInterviewerMessage?.id, speakText]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort?.();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const startListening = () => {
+    setVoiceError('');
+
+    const SpeechRecognition = getSpeechRecognition();
+    if (!SpeechRecognition) {
+      setVoiceError('Voice answers are not supported in this browser. Please use Chrome or continue with text mode.');
+      return;
+    }
+
+    recognitionRef.current?.abort?.();
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = language === 'Hindi' ? 'hi-IN' : language === 'Odia' ? 'or-IN' : 'en-US';
+
+    recognition.onresult = (event: any) => {
+      let finalText = '';
+      let interimText = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript ?? '';
+        if (event.results[index].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      if (finalText.trim()) {
+        setVoiceTranscript((previous) => `${previous} ${finalText}`.trim());
+      }
+      setInterimTranscript(interimText.trim());
+    };
+
+    recognition.onerror = () => {
+      setVoiceError('Microphone access failed. Please allow microphone permission and try again.');
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setInterimTranscript('');
+    };
+
+    recognition.start();
+    setIsListening(true);
+  };
+
+  const stopListening = () => {
+    recognitionRef.current?.stop?.();
+    setIsListening(false);
+  };
+
+  const submitVoiceAnswer = () => {
+    const answer = voiceTranscript.trim();
+
+    if (!answer) {
+      setVoiceError('Speak your answer first, then submit it.');
+      return;
+    }
+
+    recognitionRef.current?.stop?.();
+    setIsListening(false);
+    setVoiceTranscript('');
+    setInterimTranscript('');
+    handleSendMessage(answer);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,6 +335,14 @@ const InterviewPage: React.FC = () => {
   }, [isStarted, showResults, messages, resetSilenceDetection]);
 
   const handleStartInterview = () => {
+    setVoiceTranscript('');
+    setInterimTranscript('');
+    setVoiceError('');
+
+    if (interviewMode === 'voice' && !voiceSupported) {
+      setVoiceError('Voice mode needs a browser with microphone speech recognition. Chrome is recommended.');
+    }
+
     setIsStarted(true);
     setShowResults(false);
     setMessages([
@@ -239,6 +359,11 @@ const InterviewPage: React.FC = () => {
   };
 
   const handleNextQuestion = () => {
+    recognitionRef.current?.stop?.();
+    setIsListening(false);
+    setVoiceTranscript('');
+    setInterimTranscript('');
+
     if (questionIndex >= questionCount - 1) {
       handleEndInterview();
       return;
@@ -280,6 +405,11 @@ const InterviewPage: React.FC = () => {
     setShowResults(true);
     if (timerRef.current) clearInterval(timerRef.current);
     if (silenceRef.current) clearInterval(silenceRef.current);
+    recognitionRef.current?.abort?.();
+    setIsListening(false);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
 
     // Save history
     try {
@@ -376,6 +506,43 @@ const InterviewPage: React.FC = () => {
 
           {!isStarted && !showResults && (
             <>
+              <div className="grid gap-4 md:grid-cols-2 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setInterviewMode('text')}
+                  className={`app-action-card text-left ${interviewMode === 'text' ? 'border-primary-500 ring-2 ring-primary-500/20' : ''}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="app-icon-tile">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </span>
+                    <span>
+                      <strong className="block text-neutral-950 dark:text-white">Text-to-text interview</strong>
+                      <small className="mt-1 block app-muted">AI asks in text. You type your answers.</small>
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInterviewMode('voice')}
+                  className={`app-action-card text-left ${interviewMode === 'voice' ? 'border-primary-500 ring-2 ring-primary-500/20' : ''}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="app-icon-tile">
+                      <Mic className="h-6 w-6" />
+                    </span>
+                    <span>
+                      <strong className="block text-neutral-950 dark:text-white">Speech-to-speech interview</strong>
+                      <small className="mt-1 block app-muted">AI speaks the question. You answer using your microphone.</small>
+                      {!voiceSupported && <small className="mt-2 block text-amber-600 dark:text-amber-300">Best supported in Chrome with microphone permission.</small>}
+                    </span>
+                  </div>
+                </button>
+              </div>
+
               {/* Settings */}
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="flex-1">
@@ -475,7 +642,7 @@ const InterviewPage: React.FC = () => {
 
               <div className="mt-8">
                 <Button variant="primary" className="px-8 py-3 text-lg" onClick={handleStartInterview}>
-                  Start Mock Interview
+                  {interviewMode === 'voice' ? 'Start Voice Interview' : 'Start Mock Interview'}
                 </Button>
               </div>
             </>
@@ -494,9 +661,86 @@ const InterviewPage: React.FC = () => {
                     </>
                   )}
                 </div>
-                <Card>
-                  <InterviewChat messages={messages} onSendMessage={handleSendMessage} />
-                </Card>
+                {interviewMode === 'voice' ? (
+                  <Card className="app-card p-5">
+                    <div className="flex flex-col gap-5">
+                      <div className="rounded-2xl border border-primary-500/20 bg-primary-500/10 p-5">
+                        <div className="mb-3 flex items-center justify-between gap-4">
+                          <span className="app-pill">
+                            <Volume2 className="h-4 w-4" /> AI interviewer
+                          </span>
+                          <Button variant="secondary" size="sm" onClick={() => latestInterviewerMessage && speakText(latestInterviewerMessage.content)}>
+                            Replay question
+                          </Button>
+                        </div>
+                        <p className="text-lg font-semibold leading-8 text-neutral-950 dark:text-white">
+                          {latestInterviewerMessage?.content || 'Your next interview question will appear here.'}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
+                          <button
+                            type="button"
+                            onClick={isListening ? stopListening : startListening}
+                            className={`mx-auto grid h-24 w-24 place-items-center rounded-full text-white transition-colors ${
+                              isListening ? 'bg-red-500' : 'bg-primary-600 hover:bg-primary-700'
+                            }`}
+                            aria-label={isListening ? 'Stop recording answer' : 'Start recording answer'}
+                          >
+                            {isListening ? <MicOff className="h-9 w-9" /> : <Mic className="h-9 w-9" />}
+                          </button>
+                          <p className="mt-4 text-sm font-semibold text-neutral-950 dark:text-white">
+                            {isListening ? 'Listening...' : 'Tap to answer'}
+                          </p>
+                          <p className="mt-1 text-xs app-muted">Allow microphone access when your browser asks.</p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-base font-semibold text-neutral-950 dark:text-white">Your spoken answer</h3>
+                            <Button variant="primary" size="sm" onClick={submitVoiceAnswer} disabled={!voiceTranscript.trim()}>
+                              Submit answer
+                            </Button>
+                          </div>
+                          <div className="mt-4 min-h-32 rounded-xl border border-white/10 bg-white/70 p-4 text-sm leading-7 text-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-100">
+                            {voiceTranscript || interimTranscript ? (
+                              <>
+                                <span>{voiceTranscript}</span>
+                                {interimTranscript && <span className="text-neutral-500"> {interimTranscript}</span>}
+                              </>
+                            ) : (
+                              <span className="app-muted">Your answer transcript will appear here while you speak.</span>
+                            )}
+                          </div>
+                          {voiceError && <p className="mt-3 text-sm text-amber-600 dark:text-amber-300">{voiceError}</p>}
+                        </div>
+                      </div>
+
+                      <div className="max-h-64 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <h3 className="mb-3 text-sm font-semibold text-neutral-950 dark:text-white">Interview transcript</h3>
+                        <div className="space-y-3">
+                          {messages.map((message) => (
+                            <div key={message.id} className={message.role === 'candidate' ? 'text-right' : 'text-left'}>
+                              <span className="text-xs capitalize app-muted">{message.role}</span>
+                              <p className={`mt-1 inline-block max-w-[88%] rounded-xl px-3 py-2 text-sm ${
+                                message.role === 'candidate'
+                                  ? 'bg-primary-600 text-white'
+                                  : 'bg-white/80 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
+                              }`}>
+                                {message.content}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card>
+                    <InterviewChat messages={messages} onSendMessage={handleSendMessage} />
+                  </Card>
+                )}
               </div>
 
               {/* Feedback - 1 column */}
