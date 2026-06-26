@@ -82,6 +82,26 @@ const getSpeechRecognition = () => {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
 };
 
+const getSpeechLanguage = (language: string) => {
+  if (language === 'Hindi') return 'hi-IN';
+  if (language === 'Odia') return 'or-IN';
+  return 'en-US';
+};
+
+const getPreferredVoice = (language: string) => {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return undefined;
+
+  const lang = getSpeechLanguage(language);
+  const voices = window.speechSynthesis.getVoices();
+  const sameLanguageVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
+  const humanVoiceHints = ['natural', 'online', 'aria', 'jenny', 'guy', 'sonia', 'google', 'microsoft'];
+
+  return sameLanguageVoices.find((voice) => humanVoiceHints.some((hint) => voice.name.toLowerCase().includes(hint)))
+    ?? sameLanguageVoices[0]
+    ?? voices.find((voice) => humanVoiceHints.some((hint) => voice.name.toLowerCase().includes(hint)))
+    ?? voices[0];
+};
+
 interface InterviewHistoryItem {
   id: string;
   created_at: string;
@@ -111,7 +131,7 @@ const InterviewPage: React.FC = () => {
 
   // Timer & Silence Detection
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [lastActivity, setLastActivity] = useState<number>(Date.now());
+  const [, setLastActivity] = useState<number>(Date.now());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const silenceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -120,12 +140,23 @@ const InterviewPage: React.FC = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceError, setVoiceError] = useState('');
+  const [selectedVoiceName, setSelectedVoiceName] = useState('');
   const recognitionRef = useRef<any>(null);
+  const lastActivityRef = useRef(Date.now());
+  const silencePromptedRef = useRef(false);
 
   const voiceSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognition()) && 'speechSynthesis' in window;
+
+  const markActivity = useCallback(() => {
+    const now = Date.now();
+    lastActivityRef.current = now;
+    silencePromptedRef.current = false;
+    setLastActivity(now);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -161,12 +192,26 @@ const InterviewPage: React.FC = () => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
     window.speechSynthesis.cancel();
+    const preferredVoice = getPreferredVoice(language);
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === 'Hindi' ? 'hi-IN' : language === 'Odia' ? 'or-IN' : 'en-US';
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
+    utterance.lang = getSpeechLanguage(language);
+    utterance.voice = preferredVoice ?? null;
+    utterance.rate = 0.88;
+    utterance.pitch = 0.96;
+    utterance.volume = 1;
+    utterance.onstart = () => {
+      setIsAiSpeaking(true);
+      setSelectedVoiceName(preferredVoice?.name ?? 'Browser default voice');
+    };
+    utterance.onend = () => {
+      setIsAiSpeaking(false);
+      markActivity();
+    };
+    utterance.onerror = () => {
+      setIsAiSpeaking(false);
+    };
     window.speechSynthesis.speak(utterance);
-  }, [language]);
+  }, [language, markActivity]);
 
   const latestInterviewerMessage = [...messages].reverse().find((message) => message.role === 'interviewer');
 
@@ -187,6 +232,12 @@ const InterviewPage: React.FC = () => {
 
   const startListening = () => {
     setVoiceError('');
+    markActivity();
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsAiSpeaking(false);
+    }
 
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
@@ -199,7 +250,7 @@ const InterviewPage: React.FC = () => {
     recognitionRef.current = recognition;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = language === 'Hindi' ? 'hi-IN' : language === 'Odia' ? 'or-IN' : 'en-US';
+    recognition.lang = getSpeechLanguage(language);
 
     recognition.onresult = (event: any) => {
       let finalText = '';
@@ -237,6 +288,7 @@ const InterviewPage: React.FC = () => {
   const stopListening = () => {
     recognitionRef.current?.stop?.();
     setIsListening(false);
+    markActivity();
   };
 
   const submitVoiceAnswer = () => {
@@ -251,6 +303,7 @@ const InterviewPage: React.FC = () => {
     setIsListening(false);
     setVoiceTranscript('');
     setInterimTranscript('');
+    markActivity();
     handleSendMessage(answer);
   };
 
@@ -304,25 +357,28 @@ const InterviewPage: React.FC = () => {
   }, [difficulty]);
 
   const resetSilenceDetection = useCallback(() => {
-    setLastActivity(Date.now());
     if (silenceRef.current) clearInterval(silenceRef.current);
     
     silenceRef.current = setInterval(() => {
-      const inactiveFor = Math.floor((Date.now() - lastActivity) / 1000);
+      if (interviewMode === 'voice' && (isAiSpeaking || isListening)) return;
+
+      const inactiveFor = Math.floor((Date.now() - lastActivityRef.current) / 1000);
+      const promptAfter = interviewMode === 'voice' ? 75 : 30;
+      const skipAfter = interviewMode === 'voice' ? 135 : 60;
       
-      // Auto-prompt after 30s
-      if (inactiveFor === 30 && isStarted && !showResults) {
+      // Auto-prompt after a longer pause in voice mode so the flow feels less robotic.
+      if (inactiveFor >= promptAfter && isStarted && !showResults && !silencePromptedRef.current) {
+        silencePromptedRef.current = true;
         setMessages(prev => [
           ...prev, 
-          { id: Date.now().toString(), role: 'interviewer', content: 'Are you still there? Please take your time to answer.', timestamp: new Date().toISOString() }
+          { id: Date.now().toString(), role: 'interviewer', content: 'Take your time. When you are ready, answer in your own words.', timestamp: new Date().toISOString() }
         ]);
       }
-      // Skip after 60s
-      if (inactiveFor >= 60 && isStarted && !showResults) {
+      if (inactiveFor >= skipAfter && isStarted && !showResults) {
         handleNextQuestion();
       }
     }, 1000);
-  }, [lastActivity, isStarted, showResults]);
+  }, [interviewMode, isAiSpeaking, isListening, isStarted, showResults]);
 
   useEffect(() => {
     if (isStarted && !showResults) {
@@ -355,7 +411,7 @@ const InterviewPage: React.FC = () => {
     ]);
     setQuestionIndex(0);
     startTimer();
-    setLastActivity(Date.now());
+    markActivity();
   };
 
   const handleNextQuestion = () => {
@@ -379,7 +435,7 @@ const InterviewPage: React.FC = () => {
       },
     ]);
     setQuestionIndex((prev) => prev + 1);
-    setLastActivity(Date.now());
+    markActivity();
   };
 
   const handleSendMessage = (content: string) => {
@@ -392,12 +448,12 @@ const InterviewPage: React.FC = () => {
         timestamp: new Date().toISOString(),
       },
     ]);
-    setLastActivity(Date.now());
+    markActivity();
     
-    // Simulate interviewer responding after user message
+    const nextQuestionDelay = interviewMode === 'voice' ? 1100 + Math.round(Math.random() * 1200) : 2000;
     setTimeout(() => {
       handleNextQuestion();
-    }, 2000);
+    }, nextQuestionDelay);
   };
 
   const handleEndInterview = async () => {
@@ -667,7 +723,7 @@ const InterviewPage: React.FC = () => {
                       <div className="rounded-2xl border border-primary-500/20 bg-primary-500/10 p-5">
                         <div className="mb-3 flex items-center justify-between gap-4">
                           <span className="app-pill">
-                            <Volume2 className="h-4 w-4" /> AI interviewer
+                            <Volume2 className="h-4 w-4" /> {isAiSpeaking ? 'Speaking...' : 'AI interviewer'}
                           </span>
                           <Button variant="secondary" size="sm" onClick={() => latestInterviewerMessage && speakText(latestInterviewerMessage.content)}>
                             Replay question
@@ -676,6 +732,9 @@ const InterviewPage: React.FC = () => {
                         <p className="text-lg font-semibold leading-8 text-neutral-950 dark:text-white">
                           {latestInterviewerMessage?.content || 'Your next interview question will appear here.'}
                         </p>
+                        {selectedVoiceName && (
+                          <p className="mt-3 text-xs app-muted">Voice: {selectedVoiceName}</p>
+                        )}
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
