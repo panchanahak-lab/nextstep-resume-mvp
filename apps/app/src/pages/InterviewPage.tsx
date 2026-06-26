@@ -76,30 +76,77 @@ const mockQuestions = [
 ];
 
 type InterviewMode = 'text' | 'voice';
+type LiveStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
-const getSpeechRecognition = () => {
+type ViteImportMeta = ImportMeta & {
+  env?: Record<string, string | undefined>;
+};
+
+const LIVE_INPUT_RATE = 16000;
+const LIVE_OUTPUT_RATE = 24000;
+
+const getAudioContextCtor = () => {
   if (typeof window === 'undefined') return null;
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+  return window.AudioContext || (window as any).webkitAudioContext || null;
 };
 
-const getSpeechLanguage = (language: string) => {
-  if (language === 'Hindi') return 'hi-IN';
-  if (language === 'Odia') return 'or-IN';
-  return 'en-US';
+const getLiveRelayUrl = (accessToken: string, jobRole: string, selectedLanguage: string) => {
+  const env = (import.meta as ViteImportMeta).env ?? {};
+  const supabaseUrl = env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+
+  if (!supabaseUrl) {
+    throw new Error('Supabase URL is not configured.');
+  }
+
+  const relayUrl = new URL(`${supabaseUrl.replace(/^http/i, 'ws')}/functions/v1/live-interview-relay`);
+  relayUrl.searchParams.set('access_token', accessToken);
+  relayUrl.searchParams.set('job_role', jobRole);
+  relayUrl.searchParams.set('language', selectedLanguage);
+  return relayUrl.toString();
 };
 
-const getPreferredVoice = (language: string) => {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return undefined;
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
 
-  const lang = getSpeechLanguage(language);
-  const voices = window.speechSynthesis.getVoices();
-  const sameLanguageVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
-  const humanVoiceHints = ['natural', 'online', 'aria', 'jenny', 'guy', 'sonia', 'google', 'microsoft'];
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
 
-  return sameLanguageVoices.find((voice) => humanVoiceHints.some((hint) => voice.name.toLowerCase().includes(hint)))
-    ?? sameLanguageVoices[0]
-    ?? voices.find((voice) => humanVoiceHints.some((hint) => voice.name.toLowerCase().includes(hint)))
-    ?? voices[0];
+  return btoa(binary);
+};
+
+const base64ToArrayBuffer = (base64: string) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes.buffer;
+};
+
+const encodePcm16Base64 = (input: Float32Array, inputSampleRate: number) => {
+  const ratio = inputSampleRate / LIVE_INPUT_RATE;
+  const outputLength = Math.max(1, Math.floor(input.length / ratio));
+  const pcm = new Int16Array(outputLength);
+
+  for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
+    const start = Math.floor(outputIndex * ratio);
+    const end = Math.min(input.length, Math.floor((outputIndex + 1) * ratio));
+    let sampleTotal = 0;
+
+    for (let inputIndex = start; inputIndex < end; inputIndex += 1) {
+      sampleTotal += input[inputIndex];
+    }
+
+    const sample = Math.max(-1, Math.min(1, sampleTotal / Math.max(1, end - start)));
+    pcm[outputIndex] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+
+  return arrayBufferToBase64(pcm.buffer);
 };
 
 interface InterviewHistoryItem {
@@ -144,12 +191,28 @@ const InterviewPage: React.FC = () => {
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceError, setVoiceError] = useState('');
-  const [selectedVoiceName, setSelectedVoiceName] = useState('');
-  const recognitionRef = useRef<any>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>('idle');
+  const liveSocketRef = useRef<WebSocket | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const captureContextRef = useRef<AudioContext | null>(null);
+  const captureProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const captureSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const captureMuteRef = useRef<GainNode | null>(null);
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackTimeRef = useRef(0);
+  const speakingTimerRef = useRef<number | null>(null);
+  const liveSetupCompleteRef = useRef(false);
+  const liveMicPausedRef = useRef(false);
+  const completedTranscriptRef = useRef<Array<{ speaker: string; text: string }>>([]);
+  const pendingCandidateTranscriptRef = useRef('');
+  const pendingInterviewerTranscriptRef = useRef('');
   const lastActivityRef = useRef(Date.now());
   const silencePromptedRef = useRef(false);
 
-  const voiceSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognition()) && 'speechSynthesis' in window;
+  const voiceSupported = typeof window !== 'undefined'
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+    && Boolean(getAudioContextCtor())
+    && 'WebSocket' in window;
 
   const markActivity = useCallback(() => {
     const now = Date.now();
@@ -188,124 +251,327 @@ const InterviewPage: React.FC = () => {
     }
   };
 
-  const speakText = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    window.speechSynthesis.cancel();
-    const preferredVoice = getPreferredVoice(language);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = getSpeechLanguage(language);
-    utterance.voice = preferredVoice ?? null;
-    utterance.rate = 0.88;
-    utterance.pitch = 0.96;
-    utterance.volume = 1;
-    utterance.onstart = () => {
-      setIsAiSpeaking(true);
-      setSelectedVoiceName(preferredVoice?.name ?? 'Browser default voice');
-    };
-    utterance.onend = () => {
-      setIsAiSpeaking(false);
-      markActivity();
-    };
-    utterance.onerror = () => {
-      setIsAiSpeaking(false);
-    };
-    window.speechSynthesis.speak(utterance);
-  }, [language, markActivity]);
-
   const latestInterviewerMessage = [...messages].reverse().find((message) => message.role === 'interviewer');
 
-  useEffect(() => {
-    if (interviewMode === 'voice' && isStarted && latestInterviewerMessage) {
-      speakText(latestInterviewerMessage.content);
-    }
-  }, [interviewMode, isStarted, latestInterviewerMessage?.id, speakText]);
+  const addMessage = useCallback((roleName: InterviewMessage['role'], content: string) => {
+    const cleanContent = content.replace(/\s+/g, ' ').trim();
+    if (!cleanContent) return;
 
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort?.();
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        role: roleName,
+        content: cleanContent,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    markActivity();
+  }, [markActivity]);
+
+  const refreshLiveTranscript = useCallback(() => {
+    const transcriptLines = [...completedTranscriptRef.current];
+
+    if (pendingCandidateTranscriptRef.current) {
+      transcriptLines.push({ speaker: 'Candidate', text: pendingCandidateTranscriptRef.current });
+    }
+
+    if (pendingInterviewerTranscriptRef.current) {
+      transcriptLines.push({ speaker: 'Interviewer', text: pendingInterviewerTranscriptRef.current });
+    }
+
+    setVoiceTranscript(
+      transcriptLines
+        .map((line) => `${line.speaker}: ${line.text.replace(/\s+/g, ' ').trim()}`)
+        .join('\n')
+    );
   }, []);
 
-  const startListening = () => {
+  const stopGeminiMic = useCallback(() => {
+    liveMicPausedRef.current = true;
+    setIsListening(false);
+    markActivity();
+  }, [markActivity]);
+
+  const startGeminiMic = useCallback(() => {
+    if (liveStatus !== 'connected') return;
+    liveMicPausedRef.current = false;
+    setIsListening(true);
     setVoiceError('');
     markActivity();
+  }, [liveStatus, markActivity]);
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+  const stopGeminiLiveSession = useCallback(() => {
+    liveMicPausedRef.current = true;
+    setIsListening(false);
+    setIsAiSpeaking(false);
+    setLiveStatus('idle');
+
+    if (speakingTimerRef.current) {
+      window.clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
+    }
+
+    try {
+      captureProcessorRef.current?.disconnect();
+      captureSourceRef.current?.disconnect();
+      captureMuteRef.current?.disconnect();
+    } catch (_) {
+      // Audio nodes may already be closed by the browser.
+    }
+
+    captureProcessorRef.current = null;
+    captureSourceRef.current = null;
+    captureMuteRef.current = null;
+
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+
+    void captureContextRef.current?.close();
+    captureContextRef.current = null;
+
+    void playbackContextRef.current?.close();
+    playbackContextRef.current = null;
+    playbackTimeRef.current = 0;
+
+    if (liveSocketRef.current && liveSocketRef.current.readyState <= WebSocket.OPEN) {
+      liveSocketRef.current.close(1000, 'Interview ended');
+    }
+    liveSocketRef.current = null;
+    liveSetupCompleteRef.current = false;
+  }, []);
+
+  const sendLiveText = useCallback((text: string) => {
+    const socket = liveSocketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !liveSetupCompleteRef.current) return;
+
+    socket.send(JSON.stringify({
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text }],
+          },
+        ],
+        turnComplete: true,
+      },
+    }));
+  }, []);
+
+  const playGeminiAudio = useCallback((base64Audio: string) => {
+    const AudioContextCtor = getAudioContextCtor();
+    if (!AudioContextCtor) return;
+
+    const playbackContext = playbackContextRef.current ?? new AudioContextCtor({ sampleRate: LIVE_OUTPUT_RATE });
+    playbackContextRef.current = playbackContext;
+
+    if (playbackContext.state === 'suspended') {
+      void playbackContext.resume();
+    }
+
+    const pcm = new Int16Array(base64ToArrayBuffer(base64Audio));
+    if (!pcm.length) return;
+
+    const buffer = playbackContext.createBuffer(1, pcm.length, LIVE_OUTPUT_RATE);
+    const channel = buffer.getChannelData(0);
+    for (let index = 0; index < pcm.length; index += 1) {
+      channel[index] = pcm[index] / 0x8000;
+    }
+
+    const source = playbackContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(playbackContext.destination);
+
+    const startAt = Math.max(playbackContext.currentTime + 0.02, playbackTimeRef.current);
+    source.start(startAt);
+    playbackTimeRef.current = startAt + buffer.duration;
+    setIsAiSpeaking(true);
+
+    if (speakingTimerRef.current) {
+      window.clearTimeout(speakingTimerRef.current);
+    }
+    const speakingMs = Math.max(100, (playbackTimeRef.current - playbackContext.currentTime) * 1000);
+    speakingTimerRef.current = window.setTimeout(() => {
       setIsAiSpeaking(false);
-    }
+      speakingTimerRef.current = null;
+      markActivity();
+    }, speakingMs);
+  }, [markActivity]);
 
-    const SpeechRecognition = getSpeechRecognition();
-    if (!SpeechRecognition) {
-      setVoiceError('Voice answers are not supported in this browser. Please use Chrome or continue with text mode.');
+  const handleLiveMessage = useCallback((rawPayload: string) => {
+    let payload: any;
+    try {
+      payload = JSON.parse(rawPayload);
+    } catch (_) {
       return;
     }
 
-    recognitionRef.current?.abort?.();
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = getSpeechLanguage(language);
+    if (payload.error?.message) {
+      setLiveStatus('error');
+      setVoiceError(payload.error.message);
+      setIsListening(false);
+      return;
+    }
 
-    recognition.onresult = (event: any) => {
-      let finalText = '';
-      let interimText = '';
+    if ((payload.setupComplete || Object.keys(payload).length === 0) && !liveSetupCompleteRef.current) {
+      liveSetupCompleteRef.current = true;
+      setLiveStatus('connected');
+      liveMicPausedRef.current = false;
+      setIsListening(true);
+      setInterimTranscript('Connected to Gemini Live. Speak naturally after the first question.');
+      sendLiveText(`Begin the ${role} mock interview now. Ask the first question in ${language}.`);
+      return;
+    }
 
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const transcript = event.results[index][0]?.transcript ?? '';
-        if (event.results[index].isFinal) {
-          finalText += transcript;
-        } else {
-          interimText += transcript;
+    const serverContent = payload.serverContent;
+    if (!serverContent) return;
+
+    const inputText = serverContent.inputTranscription?.text;
+    if (inputText) {
+      pendingCandidateTranscriptRef.current = `${pendingCandidateTranscriptRef.current} ${inputText}`.trim();
+      refreshLiveTranscript();
+      markActivity();
+    }
+
+    const outputText = serverContent.outputTranscription?.text;
+    if (outputText) {
+      if (pendingCandidateTranscriptRef.current) {
+        completedTranscriptRef.current.push({ speaker: 'Candidate', text: pendingCandidateTranscriptRef.current });
+        addMessage('candidate', pendingCandidateTranscriptRef.current);
+        pendingCandidateTranscriptRef.current = '';
+      }
+
+      pendingInterviewerTranscriptRef.current = `${pendingInterviewerTranscriptRef.current} ${outputText}`.trim();
+      refreshLiveTranscript();
+      markActivity();
+    }
+
+    const parts = serverContent.modelTurn?.parts ?? [];
+    parts.forEach((part: any) => {
+      const inlineData = part.inlineData ?? part.inline_data;
+      if (inlineData?.data && (inlineData.mimeType ?? inlineData.mime_type ?? '').includes('audio/pcm')) {
+        playGeminiAudio(inlineData.data);
+      }
+    });
+
+    if (serverContent.turnComplete && pendingInterviewerTranscriptRef.current) {
+      completedTranscriptRef.current.push({ speaker: 'Interviewer', text: pendingInterviewerTranscriptRef.current });
+      addMessage('interviewer', pendingInterviewerTranscriptRef.current);
+      pendingInterviewerTranscriptRef.current = '';
+      refreshLiveTranscript();
+      setInterimTranscript('Your turn. Answer out loud when you are ready.');
+    }
+  }, [addMessage, language, markActivity, playGeminiAudio, refreshLiveTranscript, role, sendLiveText]);
+
+  const startGeminiLiveInterview = useCallback(async () => {
+    setVoiceError('');
+    setLiveStatus('connecting');
+    setInterimTranscript('Connecting to Gemini Live...');
+
+    if (!voiceSupported) {
+      setLiveStatus('error');
+      setVoiceError('Voice mode needs a browser with microphone, WebSocket, and AudioContext support. Chrome is recommended.');
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setLiveStatus('error');
+      setVoiceError('Voice mode needs Supabase configuration before it can connect to Gemini.');
+      return;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) {
+      setLiveStatus('error');
+      setVoiceError('Please sign in again before starting a live voice interview.');
+      return;
+    }
+
+    try {
+      const AudioContextCtor = getAudioContextCtor();
+      if (!AudioContextCtor) throw new Error('AudioContext is not supported in this browser.');
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      mediaStreamRef.current = stream;
+
+      const socket = new WebSocket(getLiveRelayUrl(accessToken, role, language));
+      liveSocketRef.current = socket;
+
+      socket.onopen = () => {
+        const captureContext = new AudioContextCtor();
+        captureContextRef.current = captureContext;
+
+        const source = captureContext.createMediaStreamSource(stream);
+        const processor = captureContext.createScriptProcessor(4096, 1, 1);
+        const mutedGain = captureContext.createGain();
+        mutedGain.gain.value = 0;
+
+        captureSourceRef.current = source;
+        captureProcessorRef.current = processor;
+        captureMuteRef.current = mutedGain;
+
+        processor.onaudioprocess = (event) => {
+          const activeSocket = liveSocketRef.current;
+          if (
+            liveMicPausedRef.current
+            || !liveSetupCompleteRef.current
+            || !activeSocket
+            || activeSocket.readyState !== WebSocket.OPEN
+          ) {
+            return;
+          }
+
+          const input = event.inputBuffer.getChannelData(0);
+          const data = encodePcm16Base64(input, captureContext.sampleRate);
+          activeSocket.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [
+                {
+                  mimeType: `audio/pcm;rate=${LIVE_INPUT_RATE}`,
+                  data,
+                },
+              ],
+            },
+          }));
+        };
+
+        source.connect(processor);
+        processor.connect(mutedGain);
+        mutedGain.connect(captureContext.destination);
+        setInterimTranscript('Waiting for Gemini Live to finish setup...');
+      };
+
+      socket.onmessage = (event) => handleLiveMessage(String(event.data));
+      socket.onerror = () => {
+        setLiveStatus('error');
+        setVoiceError('Could not connect to Gemini Live. Please check the Gemini API key and Supabase Edge Function deployment.');
+        setIsListening(false);
+      };
+      socket.onclose = (event) => {
+        if (event.code !== 1000 && isStarted) {
+          setLiveStatus('error');
+          setVoiceError(event.reason || 'Gemini Live session closed unexpectedly.');
         }
-      }
-
-      if (finalText.trim()) {
-        setVoiceTranscript((previous) => `${previous} ${finalText}`.trim());
-      }
-      setInterimTranscript(interimText.trim());
-    };
-
-    recognition.onerror = () => {
-      setVoiceError('Microphone access failed. Please allow microphone permission and try again.');
+        setIsListening(false);
+      };
+    } catch (error) {
+      setLiveStatus('error');
+      setVoiceError(error instanceof Error ? error.message : 'Could not start the Gemini Live voice interview.');
       setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      setInterimTranscript('');
-    };
-
-    recognition.start();
-    setIsListening(true);
-  };
-
-  const stopListening = () => {
-    recognitionRef.current?.stop?.();
-    setIsListening(false);
-    markActivity();
-  };
-
-  const submitVoiceAnswer = () => {
-    const answer = voiceTranscript.trim();
-
-    if (!answer) {
-      setVoiceError('Speak your answer first, then submit it.');
-      return;
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }
+  }, [handleLiveMessage, isStarted, language, role, voiceSupported]);
 
-    recognitionRef.current?.stop?.();
-    setIsListening(false);
-    setVoiceTranscript('');
-    setInterimTranscript('');
-    markActivity();
-    handleSendMessage(answer);
-  };
+  useEffect(() => stopGeminiLiveSession, [stopGeminiLiveSession]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -360,13 +626,12 @@ const InterviewPage: React.FC = () => {
     if (silenceRef.current) clearInterval(silenceRef.current);
     
     silenceRef.current = setInterval(() => {
-      if (interviewMode === 'voice' && (isAiSpeaking || isListening)) return;
+      if (interviewMode === 'voice') return;
 
       const inactiveFor = Math.floor((Date.now() - lastActivityRef.current) / 1000);
-      const promptAfter = interviewMode === 'voice' ? 75 : 30;
-      const skipAfter = interviewMode === 'voice' ? 135 : 60;
+      const promptAfter = 30;
+      const skipAfter = 60;
       
-      // Auto-prompt after a longer pause in voice mode so the flow feels less robotic.
       if (inactiveFor >= promptAfter && isStarted && !showResults && !silencePromptedRef.current) {
         silencePromptedRef.current = true;
         setMessages(prev => [
@@ -378,7 +643,7 @@ const InterviewPage: React.FC = () => {
         handleNextQuestion();
       }
     }, 1000);
-  }, [interviewMode, isAiSpeaking, isListening, isStarted, showResults]);
+  }, [interviewMode, isStarted, showResults]);
 
   useEffect(() => {
     if (isStarted && !showResults) {
@@ -394,29 +659,52 @@ const InterviewPage: React.FC = () => {
     setVoiceTranscript('');
     setInterimTranscript('');
     setVoiceError('');
+    completedTranscriptRef.current = [];
+    pendingCandidateTranscriptRef.current = '';
+    pendingInterviewerTranscriptRef.current = '';
 
     if (interviewMode === 'voice' && !voiceSupported) {
-      setVoiceError('Voice mode needs a browser with microphone speech recognition. Chrome is recommended.');
+      setVoiceError('Voice mode needs a browser with microphone, WebSocket, and AudioContext support. Chrome is recommended.');
     }
 
     setIsStarted(true);
     setShowResults(false);
-    setMessages([
-      {
-        id: Date.now().toString(),
-        role: 'interviewer',
-        content: `Welcome to the mock interview for the ${role} position. Let's begin. Tell me about yourself and your relevant experience.`,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    setMessages(interviewMode === 'voice'
+      ? [
+          {
+            id: Date.now().toString(),
+            role: 'interviewer',
+            content: 'Connecting to Gemini Live. You will hear your first question shortly.',
+            timestamp: new Date().toISOString(),
+          },
+        ]
+      : [
+          {
+            id: Date.now().toString(),
+            role: 'interviewer',
+            content: `Welcome to the mock interview for the ${role} position. Let's begin. Tell me about yourself and your relevant experience.`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
     setQuestionIndex(0);
     startTimer();
     markActivity();
+
+    if (interviewMode === 'voice') {
+      void startGeminiLiveInterview();
+    }
   };
 
   const handleNextQuestion = () => {
-    recognitionRef.current?.stop?.();
-    setIsListening(false);
+    if (interviewMode === 'voice') {
+      if (liveStatus === 'connected') {
+        sendLiveText('Please move to the next interview question now.');
+        setInterimTranscript('Asking Gemini Live to move to the next question...');
+      }
+      markActivity();
+      return;
+    }
+
     setVoiceTranscript('');
     setInterimTranscript('');
 
@@ -461,11 +749,7 @@ const InterviewPage: React.FC = () => {
     setShowResults(true);
     if (timerRef.current) clearInterval(timerRef.current);
     if (silenceRef.current) clearInterval(silenceRef.current);
-    recognitionRef.current?.abort?.();
-    setIsListening(false);
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopGeminiLiveSession();
 
     // Save history
     try {
@@ -592,8 +876,8 @@ const InterviewPage: React.FC = () => {
                     </span>
                     <span>
                       <strong className="block text-neutral-950 dark:text-white">Speech-to-speech interview</strong>
-                      <small className="mt-1 block app-muted">AI speaks the question. You answer using your microphone.</small>
-                      {!voiceSupported && <small className="mt-2 block text-amber-600 dark:text-amber-300">Best supported in Chrome with microphone permission.</small>}
+                      <small className="mt-1 block app-muted">Gemini Live speaks with you. You answer naturally using your microphone.</small>
+                      {!voiceSupported && <small className="mt-2 block text-amber-600 dark:text-amber-300">Needs microphone, WebSocket, and browser audio support.</small>}
                     </span>
                   </div>
                 </button>
@@ -723,55 +1007,62 @@ const InterviewPage: React.FC = () => {
                       <div className="rounded-2xl border border-primary-500/20 bg-primary-500/10 p-5">
                         <div className="mb-3 flex items-center justify-between gap-4">
                           <span className="app-pill">
-                            <Volume2 className="h-4 w-4" /> {isAiSpeaking ? 'Speaking...' : 'AI interviewer'}
+                            <Volume2 className="h-4 w-4" /> {isAiSpeaking ? 'Gemini speaking...' : liveStatus === 'connected' ? 'Gemini Live connected' : 'Gemini Live'}
                           </span>
-                          <Button variant="secondary" size="sm" onClick={() => latestInterviewerMessage && speakText(latestInterviewerMessage.content)}>
-                            Replay question
-                          </Button>
+                          {liveStatus === 'connecting' && <Loader2 className="h-4 w-4 animate-spin text-primary-500" />}
                         </div>
                         <p className="text-lg font-semibold leading-8 text-neutral-950 dark:text-white">
-                          {latestInterviewerMessage?.content || 'Your next interview question will appear here.'}
+                          {latestInterviewerMessage?.content || 'Gemini Live will ask your next question out loud.'}
                         </p>
-                        {selectedVoiceName && (
-                          <p className="mt-3 text-xs app-muted">Voice: {selectedVoiceName}</p>
-                        )}
+                        <p className="mt-3 text-xs app-muted">
+                          Voice powered by Gemini Live through your Supabase relay. No browser text-to-speech fallback is used.
+                        </p>
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
                           <button
                             type="button"
-                            onClick={isListening ? stopListening : startListening}
+                            onClick={isListening ? stopGeminiMic : startGeminiMic}
+                            disabled={liveStatus !== 'connected'}
                             className={`mx-auto grid h-24 w-24 place-items-center rounded-full text-white transition-colors ${
                               isListening ? 'bg-red-500' : 'bg-primary-600 hover:bg-primary-700'
-                            }`}
-                            aria-label={isListening ? 'Stop recording answer' : 'Start recording answer'}
+                            } disabled:cursor-not-allowed disabled:bg-neutral-400`}
+                            aria-label={isListening ? 'Pause microphone' : 'Resume microphone'}
                           >
                             {isListening ? <MicOff className="h-9 w-9" /> : <Mic className="h-9 w-9" />}
                           </button>
                           <p className="mt-4 text-sm font-semibold text-neutral-950 dark:text-white">
-                            {isListening ? 'Listening...' : 'Tap to answer'}
+                            {liveStatus === 'connecting' ? 'Connecting...' : isListening ? 'Mic is live' : 'Mic paused'}
                           </p>
-                          <p className="mt-1 text-xs app-muted">Allow microphone access when your browser asks.</p>
+                          <p className="mt-1 text-xs app-muted">Speak naturally. Gemini will respond after you pause.</p>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                           <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-base font-semibold text-neutral-950 dark:text-white">Your spoken answer</h3>
-                            <Button variant="primary" size="sm" onClick={submitVoiceAnswer} disabled={!voiceTranscript.trim()}>
-                              Submit answer
-                            </Button>
+                            <h3 className="text-base font-semibold text-neutral-950 dark:text-white">Live conversation</h3>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              liveStatus === 'connected'
+                                ? 'bg-green-500/10 text-green-700 dark:text-green-300'
+                                : liveStatus === 'error'
+                                  ? 'bg-red-500/10 text-red-700 dark:text-red-300'
+                                  : 'bg-primary-500/10 text-primary-700 dark:text-primary-300'
+                            }`}>
+                              {liveStatus === 'connected' ? 'Ready' : liveStatus === 'error' ? 'Needs attention' : 'Starting'}
+                            </span>
                           </div>
                           <div className="mt-4 min-h-32 rounded-xl border border-white/10 bg-white/70 p-4 text-sm leading-7 text-neutral-900 dark:bg-neutral-950/40 dark:text-neutral-100">
-                            {voiceTranscript || interimTranscript ? (
+                            {voiceTranscript ? (
+                              <pre className="whitespace-pre-wrap font-sans">{voiceTranscript}</pre>
+                            ) : interimTranscript ? (
                               <>
-                                <span>{voiceTranscript}</span>
-                                {interimTranscript && <span className="text-neutral-500"> {interimTranscript}</span>}
+                                <span className="app-muted">{interimTranscript}</span>
                               </>
                             ) : (
-                              <span className="app-muted">Your answer transcript will appear here while you speak.</span>
+                              <span className="app-muted">The live transcript will appear here once Gemini and your mic are connected.</span>
                             )}
                           </div>
+                          {interimTranscript && voiceTranscript && <p className="mt-3 text-sm app-muted">{interimTranscript}</p>}
                           {voiceError && <p className="mt-3 text-sm text-amber-600 dark:text-amber-300">{voiceError}</p>}
                         </div>
                       </div>
