@@ -4,6 +4,7 @@ import { checkRateLimit, requireUser } from "../_shared/supabase.ts";
 
 const FEATURE_LIMITS: Record<AiAction, { limit: number; windowSeconds: number }> = {
   "ats-analysis": { limit: 10, windowSeconds: 60 * 60 },
+  "resume-scan": { limit: 20, windowSeconds: 60 * 60 },
   "resume-enhancement": { limit: 30, windowSeconds: 60 * 60 },
   "resume-summary": { limit: 20, windowSeconds: 60 * 60 },
   "interview-feedback": { limit: 10, windowSeconds: 60 * 60 },

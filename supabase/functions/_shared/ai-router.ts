@@ -3,6 +3,7 @@ import { recordUsage } from "./supabase.ts";
 
 export type AiAction =
   | "ats-analysis"
+  | "resume-scan"
   | "resume-enhancement"
   | "resume-summary"
   | "interview-feedback";
@@ -69,6 +70,17 @@ const atsResponseSchema = {
   required: ["overallScore", "sectionScores", "formattingScore", "keywordScore", "detectedKeywords", "missingKeywords", "issues", "optimizationPlan", "improvedSummary", "readinessSummary"],
 };
 
+const resumeScanSchema = {
+  type: "OBJECT",
+  properties: {
+    score: { type: "NUMBER", description: "Score out of 100. Return a number." },
+    strengths: { type: "ARRAY", items: { type: "STRING" } },
+    missingKeywords: { type: "ARRAY", items: { type: "STRING" } },
+    suggestions: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["score", "strengths", "missingKeywords", "suggestions"],
+};
+
 const interviewFeedbackSchema = {
   type: "OBJECT",
   properties: {
@@ -105,6 +117,8 @@ export async function runAiAction(params: {
   switch (params.action) {
     case "ats-analysis":
       return runAtsAnalysis(params.userId, params.payload);
+    case "resume-scan":
+      return runResumeScan(params.userId, params.payload);
     case "resume-enhancement":
       return runResumeEnhancement(params.userId, params.payload);
     case "resume-summary":
@@ -183,6 +197,113 @@ async function runAtsAnalysis(userId: string, payload: Record<string, unknown>) 
   });
 
   return result;
+}
+
+async function runResumeScan(userId: string, payload: Record<string, unknown>) {
+  const resumeText = typeof payload.resumeText === "string" ? payload.resumeText : "";
+  const jobDescription = typeof payload.jobDescription === "string" ? payload.jobDescription : "";
+
+  if (!resumeText.trim()) {
+    throw new Response(JSON.stringify({ error: "Resume text is required." }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const hasJD = jobDescription.trim().length > 0;
+  const prompt = hasJD
+    ? buildAtsMatchPrompt(resumeText, jobDescription)
+    : buildResumeQualityPrompt(resumeText);
+
+  const request = {
+    model: ATS_MODEL,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    responseMimeType: "application/json",
+    responseSchema: resumeScanSchema,
+  };
+
+  const text = await generateGeminiContent(request);
+  const result = JSON.parse(text);
+
+  await recordUsage({
+    userId,
+    feature: "resume-scan",
+    model: ATS_MODEL,
+    inputBytes: byteLength(request),
+    outputBytes: byteLength(text),
+    metadata: { hasJobDescription: hasJD },
+  });
+
+  return {
+    score: typeof result.score === "number" ? result.score : Number(result.score) || 0,
+    strengths: Array.isArray(result.strengths) ? result.strengths : [],
+    missingKeywords: hasJD && Array.isArray(result.missingKeywords) ? result.missingKeywords : [],
+    suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
+  };
+}
+
+function buildAtsMatchPrompt(resumeText: string, jobDescription: string): string {
+  return `You are an ATS (Applicant Tracking System) expert.
+Analyse the resume below against the job description below.
+Do not use any pre-set keywords or templates.
+Extract keywords, scores, strengths, and suggestions
+based only on the actual content of these two documents.
+
+Resume:
+${resumeText}
+
+Job Description:
+${jobDescription}
+
+Generate the following output as a JSON object:
+
+{
+  "score": <ATS Compatibility Score out of 100 based on keyword match, formatting, and relevance. Return a number>,
+  "strengths": [
+    "<List what the resume does well compared to the job description. Be specific to the actual content, not generic.>"
+  ],
+  "missingKeywords": [
+    "<List important keywords from the job description that are absent or underrepresented in the resume. Only list keywords actually present in the job description.>"
+  ],
+  "suggestions": [
+    "<Give 4 to 6 specific, actionable suggestions based on the actual gap between the resume and job description. Do not give generic advice. Every suggestion must reference something specific from either the resume or the job description.>"
+  ]
+}
+
+Important rules:
+- Never use pre-set or hardcoded keywords
+- Never show data center, HVAC, or engineering terms unless they are genuinely present in the job description
+- Every result must be unique to this specific resume and this specific job description
+- Your output must be purely valid JSON matching the schema above.`;
+}
+
+function buildResumeQualityPrompt(resumeText: string): string {
+  return `You are a professional resume reviewer and career coach.
+Analyse the resume below for overall quality and effectiveness.
+Do not compare it to any job description.
+Evaluate it purely on its own merit.
+
+Resume:
+${resumeText}
+
+Generate the following output as a JSON object:
+
+{
+  "score": <Resume Quality Score out of 100 based on formatting, writing quality, clarity, impact of bullet points, and overall professionalism. Return a number>,
+  "strengths": [
+    "<List what this resume does well. Be specific — reference actual sections, bullet points, or phrasing from the resume. Do not give generic praise.>"
+  ],
+  "missingKeywords": [],
+  "suggestions": [
+    "<Give 4 to 6 specific, actionable suggestions to make this resume stronger. Every suggestion must reference something specific from the resume. Cover areas like formatting, quantification of achievements, section structure, clarity, and professional tone. Do not give generic advice.>"
+  ]
+}
+
+Important rules:
+- Do not mention job matching or missing keywords — there is no job description to compare against
+- The missingKeywords array must always be empty
+- Every result must be unique to this specific resume
+- Your output must be purely valid JSON matching the schema above.`;
 }
 
 async function runResumeEnhancement(userId: string, payload: Record<string, unknown>) {

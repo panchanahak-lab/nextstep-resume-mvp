@@ -36,7 +36,8 @@ flowchart LR
 
 Text AI features share `supabase/functions/_shared/ai-router.ts`.
 
-- `ats-analysis`: preserves the existing resume/JD prompt and JSON result schema.
+- `ats-analysis`: preserves the existing resume/JD prompt and JSON result schema (file-based).
+- `resume-scan`: powers the Resume Scanner UI. Accepts already-extracted resume text plus an optional job description and returns `{ score, strengths, missingKeywords, suggestions }`. Resume files are parsed in the browser (pdf.js / mammoth) before this call.
 - `resume-enhancement`: preserves the existing action/context/result bullet rewrite prompt.
 - `resume-summary`: adds a backend-only summary generation route required for remediation.
 - `interview-feedback`: preserves the existing interview scoring JSON prompt and schema.
