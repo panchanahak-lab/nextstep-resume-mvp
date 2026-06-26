@@ -345,15 +345,11 @@ const InterviewPage: React.FC = () => {
     const socket = liveSocketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN || !liveSetupCompleteRef.current) return;
 
+    // gemini-3.1-flash-live-preview only treats clientContent as seed history and
+    // will not respond to it. realtimeInput.text triggers an actual spoken reply.
     socket.send(JSON.stringify({
-      clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts: [{ text }],
-          },
-        ],
-        turnComplete: true,
+      realtimeInput: {
+        text,
       },
     }));
   }, []);
@@ -533,12 +529,10 @@ const InterviewPage: React.FC = () => {
           const data = encodePcm16Base64(input, captureContext.sampleRate);
           activeSocket.send(JSON.stringify({
             realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType: `audio/pcm;rate=${LIVE_INPUT_RATE}`,
-                  data,
-                },
-              ],
+              audio: {
+                mimeType: `audio/pcm;rate=${LIVE_INPUT_RATE}`,
+                data,
+              },
             },
           }));
         };
