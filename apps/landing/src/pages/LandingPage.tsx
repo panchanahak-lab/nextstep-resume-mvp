@@ -208,11 +208,10 @@ const UnlockModal: React.FC<{
           <strong>Create your free account to save your results</strong>
           {googleError && <p role="alert">{googleError}</p>}
           <div className="ns-account-controls">
-            <button className="ns-secondary-button" type="button" onClick={handleGoogleLogin} disabled={googleLoading}>
+            <button className="ns-primary-button" type="button" onClick={handleGoogleLogin} disabled={googleLoading}>
               {googleLoading ? 'Connecting...' : 'Continue with Google'}
             </button>
-            <input aria-label="Email address" placeholder="Enter your email" />
-            <button className="ns-primary-button" type="button" onClick={onContinueFree}>Continue free</button>
+            <button className="ns-secondary-button" type="button" onClick={onContinueFree}>View account options</button>
           </div>
           <p>First scan included · No credit card needed · Your resume stays private</p>
         </div>

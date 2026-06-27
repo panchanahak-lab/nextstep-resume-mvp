@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<{ full_name: string; email: string }>({ full_name: '', email: '' });
+  const [profileExists, setProfileExists] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -27,10 +28,14 @@ const ProfilePage: React.FC = () => {
           .from('user_profiles')
           .select('full_name')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (profileData) {
           fullName = profileData.full_name || '';
+          setProfileExists(true);
+        } else {
+          fullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+          setProfileExists(false);
         }
 
         setProfile({ full_name: fullName, email });
@@ -52,11 +57,21 @@ const ProfilePage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert({ user_id: user.id, full_name: profile.full_name });
+      const cleanName = profile.full_name.trim();
+      const query = profileExists
+        ? supabase
+            .from('user_profiles')
+            .update({ full_name: cleanName, updated_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+        : supabase
+            .from('user_profiles')
+            .insert({ user_id: user.id, full_name: cleanName });
+
+      const { error } = await query;
 
       if (error) throw error;
+      setProfile((current) => ({ ...current, full_name: cleanName }));
+      setProfileExists(true);
       setMessage('Profile updated successfully!');
     } catch (error: any) {
       console.error('Error saving profile', error);

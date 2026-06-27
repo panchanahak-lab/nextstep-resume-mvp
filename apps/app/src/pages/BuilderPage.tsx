@@ -33,6 +33,12 @@ const BuilderPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [resumeData]);
 
+  const handlePrintPdf = useCallback(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(resumeData));
+    setSaveState('saved');
+    window.requestAnimationFrame(() => window.print());
+  }, [resumeData]);
+
   return (
     <div>
       <div className="mb-6 flex justify-between items-end">
@@ -74,7 +80,7 @@ const BuilderPage: React.FC = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => alert('TODO: Integrate PDF generation')}
+              onClick={handlePrintPdf}
             >
               {COPY.BUTTONS.RESUME.download}
             </Button>
@@ -85,6 +91,10 @@ const BuilderPage: React.FC = () => {
         <div className="mt-6 lg:mt-0 lg:sticky lg:top-6 lg:self-start">
           <ResumePreview data={resumeData} />
         </div>
+      </div>
+
+      <div className="resume-print-area" aria-hidden="true">
+        <ResumePreview data={resumeData} className="resume-print-preview" />
       </div>
     </div>
   );

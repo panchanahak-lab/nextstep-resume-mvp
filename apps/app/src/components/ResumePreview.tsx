@@ -6,14 +6,15 @@ import { COPY } from '@nextstep/shared';
 
 interface ResumePreviewProps {
   data: ResumeData;
+  className?: string;
 }
 
-const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
+const ResumePreview: React.FC<ResumePreviewProps> = ({ data, className = '' }) => {
   const isEmpty = !data.name && !data.title && !data.summary && data.experience.length === 0;
 
   if (isEmpty) {
     return (
-      <Card className="p-6 lg:p-8 flex items-center justify-center min-h-[500px] bg-neutral-50/50 dark:bg-neutral-900/50 border-dashed">
+      <Card className={`resume-preview-card p-6 lg:p-8 flex items-center justify-center min-h-[500px] bg-neutral-50/50 dark:bg-neutral-900/50 border-dashed ${className}`}>
         <p className="text-neutral-500 dark:text-neutral-400 text-center">
           {COPY.BUILDER.emptyState}
         </p>
@@ -22,7 +23,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data }) => {
   }
 
   return (
-    <Card className="p-6 lg:p-8">
+    <Card className={`resume-preview-card p-6 lg:p-8 ${className}`}>
       {/* Header */}
       <div className="mb-4">
         <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{data.name}</h2>
