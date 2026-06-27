@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type { ResumeData } from '../../../../packages/shared/src/types';
 import Card from '../../../../packages/shared/src/components/Card';
 import ResumePreview from '../components/ResumePreview';
-import { mockResumeData } from '../data/mockData';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
 import Button from '../../../../packages/shared/src/components/Button';
-import { Loader2 } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
+import { isResumeDataEmpty, loadStoredResume } from '../utils/resumeStorage';
 
 const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<{ full_name: string; email: string }>({ full_name: '', email: '' });
@@ -12,6 +14,7 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [savedResume, setSavedResume] = useState<ResumeData | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -39,6 +42,8 @@ const ProfilePage: React.FC = () => {
         }
 
         setProfile({ full_name: fullName, email });
+        const resume = loadStoredResume(user.id);
+        setSavedResume(resume && !isResumeDataEmpty(resume) ? resume : null);
       } catch (error) {
         console.error('Error fetching profile', error);
       } finally {
@@ -72,6 +77,7 @@ const ProfilePage: React.FC = () => {
       if (error) throw error;
       setProfile((current) => ({ ...current, full_name: cleanName }));
       setProfileExists(true);
+      window.dispatchEvent(new Event('nextstep-profile-updated'));
       setMessage('Profile updated successfully!');
     } catch (error: any) {
       console.error('Error saving profile', error);
@@ -155,7 +161,25 @@ const ProfilePage: React.FC = () => {
       {/* Resume */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">My Resume</h2>
-        <ResumePreview data={mockResumeData} />
+        {savedResume ? (
+          <ResumePreview data={savedResume} />
+        ) : (
+          <Card className="p-8 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300">
+              <FileText className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-white">No resume saved yet</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-neutral-600 dark:text-neutral-400">
+              Create your first resume in the builder. Once you save your details, it will appear here.
+            </p>
+            <Link
+              to="/builder"
+              className="mt-5 inline-flex rounded-btn bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-500 dark:hover:bg-primary-600 dark:focus:ring-offset-neutral-900"
+            >
+              Create Resume
+            </Link>
+          </Card>
+        )}
       </div>
     </div>
   );

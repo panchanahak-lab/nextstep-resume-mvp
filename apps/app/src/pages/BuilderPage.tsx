@@ -5,44 +5,62 @@ import { COPY, getSupabaseClient } from '@nextstep/shared';
 import Button from '../../../../packages/shared/src/components/Button';
 import ResumeForm from '../components/ResumeForm';
 import ResumePreview from '../components/ResumePreview';
-import { mockResumeData } from '../data/mockData';
 import { createResumePdfBlob, downloadPdfUrl, getResumePdfFilename } from '../utils/resumePdf';
-
-const STORAGE_KEY = 'nextstep_resume_autosave';
+import { emptyResumeData, loadStoredResume, saveStoredResume } from '../utils/resumeStorage';
 
 const BuilderPage: React.FC = () => {
-  const [resumeData, setResumeData] = useState<ResumeData>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse saved resume', e);
-    }
-    return mockResumeData;
-  });
+  const [resumeData, setResumeData] = useState<ResumeData>(emptyResumeData);
 
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
+  const [resumeOwnerId, setResumeOwnerId] = useState<string | null>(null);
+  const [resumeLoaded, setResumeLoaded] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<{ filename: string } | null>(null);
   const [isImproving, setIsImproving] = useState(false);
   const [improveStatus, setImproveStatus] = useState('');
   const [improveError, setImproveError] = useState('');
 
+  useEffect(() => {
+    const loadResume = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+
+        if (!user) {
+          setResumeOwnerId(null);
+          setResumeData(emptyResumeData);
+          return;
+        }
+
+        setResumeOwnerId(user.id);
+        setResumeData(loadStoredResume(user.id) ?? emptyResumeData);
+      } finally {
+        setResumeLoaded(true);
+      }
+    };
+
+    loadResume();
+  }, []);
+
   // Debounced save to localStorage
   useEffect(() => {
+    if (!resumeLoaded || !resumeOwnerId) return;
+
     setSaveState('saving');
     const timer = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(resumeData));
+      saveStoredResume(resumeOwnerId, resumeData);
       setSaveState('saved');
     }, 1000); // 1s debounce
 
     return () => clearTimeout(timer);
-  }, [resumeData]);
+  }, [resumeData, resumeLoaded, resumeOwnerId]);
 
   const handlePreviewPdf = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(resumeData));
+    if (resumeOwnerId) {
+      saveStoredResume(resumeOwnerId, resumeData);
+    }
     setSaveState('saved');
     setPdfPreview({ filename: getResumePdfFilename(resumeData) });
-  }, [resumeData]);
+  }, [resumeData, resumeOwnerId]);
 
   const handleClosePreview = useCallback(() => {
     setPdfPreview(null);

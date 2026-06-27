@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ThemeToggle } from '@nextstep/shared';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { ThemeToggle, getSupabaseClient } from '@nextstep/shared';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -9,8 +9,45 @@ interface TopbarProps {
 
 const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [initials, setInitials] = useState('U');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+
+  const getInitials = useCallback((nameOrEmail?: string | null) => {
+    const value = nameOrEmail?.trim();
+    if (!value) return 'U';
+
+    const localPart = value.includes('@') ? value.split('@')[0] : value;
+    const words = localPart.split(/[\s._-]+/).filter(Boolean);
+    if (words.length >= 2) {
+      return `${words[0][0]}${words[1][0]}`.toUpperCase();
+    }
+
+    return localPart.slice(0, 2).toUpperCase();
+  }, []);
+
+  const refreshInitials = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setInitials('U');
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('full_name')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const displayName = profile?.full_name
+      || user.user_metadata?.full_name
+      || user.user_metadata?.name
+      || user.email;
+
+    setInitials(getInitials(displayName));
+  }, [getInitials]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -22,10 +59,24 @@ const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    refreshInitials();
+    window.addEventListener('nextstep-profile-updated', refreshInitials);
+
+    const supabase = getSupabaseClient();
+    const { data: authListener } = supabase?.auth.onAuthStateChange(() => {
+      refreshInitials();
+    }) || { data: null };
+
+    return () => {
+      window.removeEventListener('nextstep-profile-updated', refreshInitials);
+      authListener?.subscription.unsubscribe();
+    };
+  }, [refreshInitials]);
+
   const handleLogout = async () => {
     if (window.confirm('Are you sure you want to log out?')) {
       try {
-        const { getSupabaseClient } = await import('@nextstep/shared');
         const supabase = getSupabaseClient();
         if (supabase) {
           await supabase.auth.signOut();
@@ -67,7 +118,7 @@ const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="w-9 h-9 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 transition-shadow"
             >
-              RK
+              {initials}
             </button>
             {dropdownOpen && (
               <div className="app-panel absolute right-0 mt-2 w-48 rounded-lg overflow-hidden z-50">
