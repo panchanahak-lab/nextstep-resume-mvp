@@ -75,15 +75,13 @@ const wrapText = (value: string, fontSize: number, maxWidth = CONTENT_WIDTH) => 
   return lines;
 };
 
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
+export const downloadPdfUrl = (url: string, filename: string) => {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
 };
 
 export const createResumePdfBlob = (data: ResumeData) => {
@@ -235,7 +233,7 @@ export const createResumePdfBlob = (data: ResumeData) => {
   return new Blob([pdf], { type: 'application/pdf' });
 };
 
-export const downloadResumePdf = (data: ResumeData) => {
+export const getResumePdfFilename = (data: ResumeData) => {
   const filenameBase = safeText(data.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'resume';
-  downloadBlob(createResumePdfBlob(data), `${filenameBase}.pdf`);
+  return `${filenameBase}.pdf`;
 };
