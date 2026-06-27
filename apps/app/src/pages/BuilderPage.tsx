@@ -6,6 +6,7 @@ import Button from '../../../../packages/shared/src/components/Button';
 import ResumeForm from '../components/ResumeForm';
 import ResumePreview from '../components/ResumePreview';
 import { mockResumeData } from '../data/mockData';
+import { downloadResumePdf } from '../utils/resumePdf';
 
 const STORAGE_KEY = 'nextstep_resume_autosave';
 
@@ -33,10 +34,10 @@ const BuilderPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [resumeData]);
 
-  const handlePrintPdf = useCallback(() => {
+  const handleDownloadPdf = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(resumeData));
     setSaveState('saved');
-    window.requestAnimationFrame(() => window.print());
+    downloadResumePdf(resumeData);
   }, [resumeData]);
 
   return (
@@ -80,7 +81,7 @@ const BuilderPage: React.FC = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={handlePrintPdf}
+              onClick={handleDownloadPdf}
             >
               {COPY.BUTTONS.RESUME.download}
             </Button>
@@ -93,9 +94,6 @@ const BuilderPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="resume-print-area" aria-hidden="true">
-        <ResumePreview data={resumeData} className="resume-print-preview" />
-      </div>
     </div>
   );
 };
