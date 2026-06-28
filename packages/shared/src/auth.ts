@@ -4,9 +4,28 @@ type ViteImportMeta = ImportMeta & {
   env?: Record<string, string | undefined>;
 };
 
+/**
+ * The supabase-js client expects only the project base URL (e.g.
+ * `https://<ref>.supabase.co`) and appends `/auth/v1`, `/functions/v1`,
+ * `/rest/v1`, etc. itself. Some environments configure `VITE_SUPABASE_URL`
+ * with a trailing service path or slash (e.g. `.../rest/v1/`), which would
+ * otherwise produce broken endpoints like `.../rest/v1//functions/v1/...`
+ * and silently break auth and edge-function calls (the live scan). Strip any
+ * trailing service path and slashes so the client always targets the base URL.
+ */
+export const normalizeSupabaseUrl = (rawUrl: string): string => {
+  const trimmed = (rawUrl ?? '').trim();
+  if (!trimmed) return '';
+
+  return trimmed
+    .replace(/\/+$/, '')
+    .replace(/\/(rest|auth|functions|storage|realtime)\/v\d+$/i, '')
+    .replace(/\/+$/, '');
+};
+
 const env = (import.meta as ViteImportMeta).env ?? {};
-const supabaseUrl = env.VITE_SUPABASE_URL ?? '';
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY ?? '';
+const supabaseUrl = normalizeSupabaseUrl(env.VITE_SUPABASE_URL ?? '');
+const supabaseAnonKey = (env.VITE_SUPABASE_ANON_KEY ?? '').trim();
 
 let client: SupabaseClient | null = null;
 
