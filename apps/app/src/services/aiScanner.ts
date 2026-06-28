@@ -3,12 +3,21 @@ import { getSupabaseClient } from '@nextstep/shared';
 export type ScanMode = 'ats-match' | 'resume-quality';
 
 export interface ResumeIssue {
+  // New structured patch fields
+  target_section?: string;
+  issue_type?: string;
+  original_text?: string;
+  replacement_text?: string;
+  explanation?: string;
+  confidence?: string;
+  apply_by_default?: boolean;
+  severity?: string;
+  // Legacy fields (backward compat)
   title?: string;
   location?: string;
   description?: string;
   highlight?: string;
   suggestion?: string;
-  severity?: string;
 }
 
 export interface ATSScanResult {
@@ -19,7 +28,7 @@ export interface ATSScanResult {
   job_role: string | null;
   job_description: string | null;
   
-  // New Transparent Scoring Fields
+  // Transparent Scoring Fields
   final_score: number;
   confidence_level: 'High' | 'Medium' | 'Low';
   keyword_score: number;
@@ -63,8 +72,14 @@ export interface ATSScanResult {
   improved_summary_suggestion: string;
   section_wise_guidance: string[];
   
-  // Tracked changes issues
+  // Tracked changes issues (machine-readable patches)
   issues: ResumeIssue[];
+  
+  // Versioning & caching
+  scoring_version?: string;
+  scan_hash?: string;
+  cached?: boolean;
+  save_failed?: boolean;
   
   // Compatibility fields for the original UI features
   score: number;
@@ -94,15 +109,6 @@ const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-const textToBase64 = (text: string) => {
-  const bytes = new TextEncoder().encode(text);
-  let binary = '';
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-};
-
 const buildStrengths = (keywordScore: number, skillsScore: number, experienceScore: number, structureScore: number, formattingScore: number, achievementScore: number) => {
   const strengths: string[] = [];
   if (keywordScore >= 22) strengths.push("Strong keyword alignment with the target role.");
@@ -116,9 +122,8 @@ const buildStrengths = (keywordScore: number, skillsScore: number, experienceSco
 };
 
 /**
- * Analyze a resume through the Supabase Edge Function so production uses
- * backend Gemini secrets instead of exposing or requiring a browser API key.
- * This runs the transparent, 2-layer scoring system.
+ * Analyze a resume through the Supabase Edge Function.
+ * Uses the transparent, deterministic scoring system (temperature=0, scoring_version).
  */
 export const analyzeResume = async ({
   resumeText = '',
@@ -166,7 +171,7 @@ export const analyzeResume = async ({
 
   const result = data as any;
 
-  // Dynamic compatibility mappings so the existing CV diff UI continues to work flawlessly
+  // Dynamic compatibility mappings so the existing UI continues to work
   return {
     ...result,
     score: result.final_score,
@@ -185,4 +190,28 @@ export const analyzeResume = async ({
     improvedSummary: result.improved_summary_suggestion,
     mode,
   };
+};
+
+/**
+ * Retry saving a scan result that failed to save on the first attempt.
+ * Calls the same Edge Function with retry_save=true and the full payload.
+ */
+export const retrySaveScan = async (scanResult: ATSScanResult): Promise<{ save_failed: boolean; id?: string; created_at?: string }> => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Scanner backend is not configured.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('analyze-resume', {
+    body: {
+      retry_save: true,
+      retry_payload: scanResult,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to save scan results.');
+  }
+
+  return data as { save_failed: boolean; id?: string; created_at?: string };
 };

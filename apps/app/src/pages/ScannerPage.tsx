@@ -16,7 +16,10 @@ import {
   Award, 
   ListChecks, 
   Copy,
-  Target
+  Target,
+  Download,
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
@@ -25,7 +28,7 @@ import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
 import { extractTextFromFile, type ParseResult } from '../utils/documentParser';
-import { analyzeResume, type ATSScanResult, type ResumeIssue } from '../services/aiScanner';
+import { analyzeResume, retrySaveScan, type ATSScanResult, type ResumeIssue } from '../services/aiScanner';
 
 interface ScanHistoryItem {
   id: string;
@@ -71,6 +74,14 @@ const extractQuotedReplacement = (suggestion = '') => {
 const buildSuggestedChanges = (issues: ResumeIssue[]) => {
   return issues
     .map((issue) => {
+      // Prefer new structured fields; fall back to legacy parsing
+      if (issue.original_text && issue.replacement_text) {
+        return {
+          original: issue.original_text,
+          replacement: issue.replacement_text,
+          suggestion: issue.explanation || issue.suggestion || issue.title || '',
+        };
+      }
       const replacement = extractQuotedReplacement(issue.suggestion);
       if (!replacement) return null;
 
@@ -191,6 +202,14 @@ const ScannerPage: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<ScanHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Save retry state
+  const [retrySaving, setRetrySaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Download Revised CV options
+  const [applyChanges, setApplyChanges] = useState(true);
+  const [includeKeywords, setIncludeKeywords] = useState(true);
+
   useEffect(() => {
     if (activeTab === 'history') {
       fetchHistory();
@@ -276,6 +295,8 @@ const ScannerPage: React.FC = () => {
       setScanResult(result);
       setScannedResumeText(finalResumeText.trim() && finalResumeText !== file?.name ? finalResumeText : '');
       setShowResults(true);
+      setSaveSuccess(!result.save_failed);
+      setRetrySaving(false);
     } catch (error: any) {
       setScanError(error.message || 'An error occurred during scanning. Please try again.');
     } finally {
@@ -632,8 +653,95 @@ const ScannerPage: React.FC = () => {
     window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
   };
 
+  /** Retry saving a scan result that failed to persist. */
+  const handleRetrySave = async () => {
+    if (!scanResult) return;
+    setRetrySaving(true);
+    try {
+      const response = await retrySaveScan(scanResult);
+      if (!response.save_failed) {
+        setSaveSuccess(true);
+        setScanResult((prev) => prev ? { ...prev, save_failed: false, warning: undefined, id: response.id || prev.id, created_at: response.created_at || prev.created_at } : prev);
+      }
+    } catch {
+      // keep existing warning
+    } finally {
+      setRetrySaving(false);
+    }
+  };
+
+  /** Download revised CV directly (no popup). */
+  const downloadRevisedCV = () => {
+    if (!scannedResumeText || !scanResult) return;
+
+    // Determine which changes to apply
+    const safeIssues = (scanResult.issues || []).filter(i => i.apply_by_default !== false && i.original_text && i.replacement_text);
+    const manualIssues = (scanResult.issues || []).filter(i => i.apply_by_default === false || !i.original_text || !i.replacement_text);
+    const changesToApply = applyChanges ? buildSuggestedChanges(safeIssues) : [];
+
+    // Apply safe patches
+    let revisedText = applySuggestedChanges(scannedResumeText, changesToApply);
+
+    // Insert suggested keywords naturally into the Skills or Summary section
+    if (includeKeywords && scanResult.missing_keywords?.length > 0) {
+      const keywordsToAdd = scanResult.missing_keywords.filter(kw => !revisedText.toLowerCase().includes(kw.toLowerCase()));
+      if (keywordsToAdd.length > 0) {
+        const skillsMatch = revisedText.match(/(SKILLS|KEY SKILLS|TECHNICAL SKILLS|CORE COMPETENCIES|SKILLS AND STRENGTHS)[^\n]*/i);
+        if (skillsMatch && skillsMatch.index !== undefined) {
+          const insertPos = skillsMatch.index + skillsMatch[0].length;
+          revisedText = revisedText.slice(0, insertPos) + ', ' + keywordsToAdd.join(', ') + revisedText.slice(insertPos);
+        } else {
+          // Append a Skills section
+          revisedText += '\n\nKEY SKILLS\n' + keywordsToAdd.join(', ');
+        }
+      }
+    }
+
+    const improvedSummary = scanResult.improvedSummary || scanResult.improved_summary_suggestion;
+    const revisedHtml = resumeTextToHtml(revisedText);
+    const summaryBlock = improvedSummary
+      ? `<section style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px dashed #e2e8f0;">
+           <h2 style="margin:0 0 8px;font-size:13.5px;letter-spacing:0.04em;text-transform:uppercase;color:#1d4ed8;">AI-Optimized Professional Summary</h2>
+           <p style="margin:0;">${escapeHtml(improvedSummary)}</p>
+         </section>`
+      : '';
+
+    const docHtml = `<!doctype html>
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <title>NextStep Revised Resume</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #1f2937; font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; line-height: 1.5; font-size: 13px; }
+            .sheet { width: auto; margin: 0 auto; padding: 0; }
+            .cv-body { white-space: pre-wrap; word-wrap: break-word; }
+            .cv-heading { display: inline-block; margin-top: 14px; font-weight: 700; font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase; color: #1d4ed8; border-bottom: 1px solid #c7d2fe; padding-bottom: 2px; }
+            @page { size: A4; margin: 14mm; }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">
+            ${summaryBlock}
+            <div class="cv-body">${revisedHtml}</div>
+          </main>
+        </body>
+      </html>`;
+
+    const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'NextStep-Revised-Resume.doc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
   const suggestedChanges = scanResult ? buildSuggestedChanges(scanResult.issues) : [];
   const canPreviewRevisedResume = Boolean(scannedResumeText && suggestedChanges.length > 0);
+  const canDownloadRevisedResume = Boolean(scannedResumeText && scanResult);
   const diffParts = canPreviewRevisedResume
     ? buildDiffParts(scannedResumeText, suggestedChanges)
     : [];
@@ -885,14 +993,47 @@ const ScannerPage: React.FC = () => {
           {/* Results Section */}
           {showResults && scanResult && (
             <div className="mt-8 space-y-8 animate-fadeIn">
-              {/* Incomplete Analysis Warning */}
-              {scanResult.warning && (
+              {/* Save Status Banners */}
+              {scanResult.save_failed && !saveSuccess && (
+                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-amber-900 dark:text-amber-300">Could Not Save to History</h4>
+                    <p className="text-sm text-amber-800 dark:text-amber-400 mt-1">Your analysis is ready, but we could not save it to history. Please retry saving.</p>
+                    <button
+                      onClick={handleRetrySave}
+                      disabled={retrySaving}
+                      className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {retrySaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      {retrySaving ? 'Saving...' : 'Retry Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {saveSuccess && scanResult.save_failed === false && (
+                <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm font-medium text-green-800 dark:text-green-300">Saved to scan history.</p>
+                </div>
+              )}
+
+              {/* Incomplete Analysis Warning (non-save related) */}
+              {scanResult.warning && !scanResult.save_failed && (
                 <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                   <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <h4 className="font-semibold text-amber-900 dark:text-amber-300">Analysis Incomplete</h4>
                     <p className="text-sm text-amber-800 dark:text-amber-400 mt-1">{scanResult.warning}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Cached result note */}
+              {scanResult.cached && (
+                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                  <p className="text-sm text-blue-800 dark:text-blue-300">Result loaded from a previous identical scan. Re-upload or change the job description to get a fresh analysis.</p>
                 </div>
               )}
 
@@ -1334,8 +1475,8 @@ const ScannerPage: React.FC = () => {
                 </Card>
               )}
 
-              {/* Tracked Changes and Printer Preview Section (IMPORTANT FEATURE TO PRESERVE) */}
-              {(scanResult.issues?.length > 0 || suggestedChanges.length > 0) && (
+              {/* Suggested CV Changes + Download Revised CV Section */}
+              {(scanResult.issues?.length > 0 || suggestedChanges.length > 0 || canDownloadRevisedResume) && (
                 <Card className="p-6 border-indigo-200 dark:border-indigo-900">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -1343,25 +1484,67 @@ const ScannerPage: React.FC = () => {
                         Suggested CV Changes
                       </h3>
                       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Review the exact text the AI found, then use the revised draft below to print a highlighted copy.
+                        Review the AI suggestions below. Check the ones you want applied, then download your revised CV.
                       </p>
                     </div>
-                    {canPreviewRevisedResume && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => openRevisedResumePreview(
-                          scannedResumeText,
-                          suggestedChanges,
-                          scanResult.improvedSummary || scanResult.improved_summary_suggestion,
-                          scanResult.missing_keywords || scanResult.missingKeywords,
-                        )}
-                        className="inline-flex items-center justify-center gap-2"
-                      >
-                        <Printer className="h-4 w-4" />
-                        Preview & print revised draft
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {canDownloadRevisedResume && (
+                        <Button
+                          variant="primary"
+                          onClick={downloadRevisedCV}
+                          className="inline-flex items-center justify-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Revised CV
+                        </Button>
+                      )}
+                      {canPreviewRevisedResume && (
+                        <button
+                          onClick={() => openRevisedResumePreview(
+                            scannedResumeText,
+                            suggestedChanges,
+                            scanResult.improvedSummary || scanResult.improved_summary_suggestion,
+                            scanResult.missing_keywords || scanResult.missingKeywords,
+                          )}
+                          className="inline-flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Preview revised draft
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Download Options Checkboxes */}
+                  {canDownloadRevisedResume && (
+                    <div className="mt-4 flex flex-wrap items-center gap-6 p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                      <label className="inline-flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyChanges}
+                          onChange={(e) => setApplyChanges(e.target.checked)}
+                          className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        Apply suggested changes
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={includeKeywords}
+                          onChange={(e) => setIncludeKeywords(e.target.checked)}
+                          className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        Include suggested keywords
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Disclaimer */}
+                  {canDownloadRevisedResume && (
+                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 italic">
+                      We applied safe suggested changes to an ATS-friendly revised draft. Please review before final use.
+                    </p>
+                  )}
 
                   {scanResult.improvedSummary && (
                     <div className="mt-5 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-950/30">
@@ -1370,41 +1553,99 @@ const ScannerPage: React.FC = () => {
                     </div>
                   )}
 
-                  {scanResult.issues?.length > 0 && (
-                    <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                      {scanResult.issues.map((issue, index) => (
-                        <div key={`${issue.title || 'issue'}-${index}`} className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
-                          <div className="mb-3 flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-                                {issue.title || `Issue #${index + 1}`}
-                              </p>
-                              {issue.location && (
-                                <p className="text-xs text-neutral-500 dark:text-neutral-400">{issue.location}</p>
-                              )}
+                  {/* Safe to Apply Issues */}
+                  {(() => {
+                    const safeIssues = (scanResult.issues || []).filter(i => i.apply_by_default !== false && i.original_text && i.replacement_text);
+                    const manualIssues = (scanResult.issues || []).filter(i => i.apply_by_default === false || !i.original_text || !i.replacement_text);
+                    // Also include legacy issues without structured fields
+                    const legacyIssues = (scanResult.issues || []).filter(i => !i.original_text && (i.highlight || i.suggestion));
+                    const allManual = [...manualIssues, ...legacyIssues.filter(li => !manualIssues.includes(li))];
+
+                    return (
+                      <>
+                        {safeIssues.length > 0 && (
+                          <div className="mt-5">
+                            <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              Safe to Apply ({safeIssues.length})
+                            </h4>
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                              {safeIssues.map((issue, index) => (
+                                <div key={`safe-${index}`} className="rounded-lg border border-green-200 bg-white p-4 dark:border-green-800/50 dark:bg-neutral-900">
+                                  <div className="mb-2 flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                                        {issue.explanation || issue.title || `Change #${index + 1}`}
+                                      </p>
+                                      <p className="text-xs text-neutral-500 mt-0.5">{issue.target_section || issue.location || ''}</p>
+                                    </div>
+                                    <Badge variant="success" className="text-[10px]">{issue.confidence || 'high'}</Badge>
+                                  </div>
+                                  {issue.original_text && (
+                                    <div className="mb-2 rounded-md bg-yellow-50 p-2 text-sm dark:bg-yellow-900/20">
+                                      <span className="text-xs font-semibold text-neutral-500 uppercase">Current</span>
+                                      <p className="text-yellow-900 dark:text-yellow-200">{issue.original_text}</p>
+                                    </div>
+                                  )}
+                                  {issue.replacement_text && (
+                                    <div className="rounded-md bg-green-50 p-2 text-sm dark:bg-green-900/20">
+                                      <span className="text-xs font-semibold text-neutral-500 uppercase">Suggested (Copy-Paste Ready)</span>
+                                      <p className="text-green-900 dark:text-green-200 font-medium select-all cursor-text">{issue.replacement_text}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                            {issue.severity && (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold capitalize text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                                {issue.severity}
-                              </span>
-                            )}
                           </div>
-                          {issue.highlight && (
-                            <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
-                              <span className="font-semibold">Current text: </span>
-                              <mark className="bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-100">{issue.highlight}</mark>
+                        )}
+
+                        {allManual.length > 0 && (
+                          <div className="mt-5">
+                            <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600" />
+                              Needs Manual Review ({allManual.length})
+                            </h4>
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                              {allManual.map((issue, index) => (
+                                <div key={`manual-${index}`} className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-800/50 dark:bg-neutral-900">
+                                  <div className="mb-2 flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                                        {issue.explanation || issue.title || `Issue #${index + 1}`}
+                                      </p>
+                                      <p className="text-xs text-neutral-500 mt-0.5">{issue.target_section || issue.location || ''}</p>
+                                    </div>
+                                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold capitalize text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                      {issue.severity || 'review'}
+                                    </span>
+                                  </div>
+                                  {(issue.original_text || issue.highlight) && (
+                                    <div className="mb-2 rounded-md bg-yellow-50 p-2 text-sm dark:bg-yellow-900/20">
+                                      <span className="text-xs font-semibold text-neutral-500 uppercase">Current</span>
+                                      <p className="text-yellow-900 dark:text-yellow-200">{issue.original_text || issue.highlight}</p>
+                                    </div>
+                                  )}
+                                  {issue.replacement_text ? (
+                                    <div className="rounded-md bg-green-50 p-2 text-sm dark:bg-green-900/20">
+                                      <span className="text-xs font-semibold text-neutral-500 uppercase">Suggested</span>
+                                      <p className="text-green-900 dark:text-green-200">{issue.replacement_text}</p>
+                                    </div>
+                                  ) : issue.suggestion ? (
+                                    <div className="rounded-md bg-blue-50 p-2 text-sm dark:bg-blue-900/20">
+                                      <span className="text-xs font-semibold text-neutral-500 uppercase">Guidance</span>
+                                      <p className="text-blue-900 dark:text-blue-200">{issue.suggestion}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-neutral-500 italic">Please verify and correct this manually.</p>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                          )}
-                          {issue.suggestion && (
-                            <div className="rounded-md bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950/30 dark:text-green-200">
-                              <span className="font-semibold">Suggested change: </span>
-                              {issue.suggestion}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {canPreviewRevisedResume && (
                     <div className="mt-6">
@@ -1449,7 +1690,7 @@ const ScannerPage: React.FC = () => {
                         </pre>
                       </div>
                       <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                        Yellow shows your current wording and green shows the AI-suggested replacement. Open the full draft to download or print.
+                        Yellow shows your current wording and green shows the AI-suggested replacement.
                       </p>
                     </div>
                   )}

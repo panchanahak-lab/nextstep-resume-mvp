@@ -4,6 +4,7 @@ export interface GeminiRequest {
   systemInstruction?: unknown;
   responseSchema?: unknown;
   responseMimeType?: string;
+  temperature?: number;
 }
 
 export async function generateGeminiContent(request: GeminiRequest): Promise<string> {
@@ -16,6 +17,7 @@ export async function generateGeminiContent(request: GeminiRequest): Promise<str
   const generationConfig: Record<string, unknown> = {};
   if (request.responseMimeType) generationConfig.responseMimeType = request.responseMimeType;
   if (request.responseSchema) generationConfig.responseSchema = request.responseSchema;
+  if (request.temperature !== undefined) generationConfig.temperature = request.temperature;
 
   const body: Record<string, unknown> = {
     contents: request.contents,
