@@ -4,6 +4,7 @@ export type ScanMode = 'ats-match' | 'resume-quality';
 
 export interface ATSScanResult {
   score: number;
+  projectedScore: number;
   strengths: string[];
   missingKeywords: string[];
   suggestions: string[];
@@ -64,17 +65,20 @@ const buildStrengths = (result: EdgeAtsResult) => {
   const strengths: string[] = [];
 
   Object.entries(result.sectionScores || {}).forEach(([section, score]) => {
-    if (Number(score) >= 75) {
-      strengths.push(`Strong ${section} section score (${Math.round(Number(score))}/100).`);
+    const sectionScore = clampScore(score);
+    if (sectionScore >= 75) {
+      strengths.push(`Strong ${section} section score (${sectionScore}/100).`);
     }
   });
 
-  if (Number(result.formattingScore) >= 75) {
-    strengths.push(`Clean formatting score (${Math.round(Number(result.formattingScore))}/100).`);
+  const formattingScore = clampScore(result.formattingScore);
+  if (formattingScore >= 75) {
+    strengths.push(`Clean formatting score (${formattingScore}/100).`);
   }
 
-  if (Number(result.keywordScore) >= 75) {
-    strengths.push(`Strong keyword coverage score (${Math.round(Number(result.keywordScore))}/100).`);
+  const keywordScore = clampScore(result.keywordScore);
+  if (keywordScore >= 75) {
+    strengths.push(`Strong keyword coverage score (${keywordScore}/100).`);
   }
 
   if (Array.isArray(result.detectedKeywords) && result.detectedKeywords.length > 0) {
@@ -94,6 +98,18 @@ const buildSuggestions = (result: EdgeAtsResult) => {
   ].filter(Boolean);
 
   return Array.from(new Set(suggestions)).slice(0, 8);
+};
+
+const clampScore = (value: unknown) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+
+const estimateProjectedScore = (currentScore: number, result: EdgeAtsResult, hasJD: boolean) => {
+  const issueCount = Array.isArray(result.issues) ? result.issues.length : 0;
+  const missingKeywordCount = hasJD && Array.isArray(result.missingKeywords) ? result.missingKeywords.length : 0;
+  const suggestionCount = Array.isArray(result.optimizationPlan) ? result.optimizationPlan.length : 0;
+  const improvementPotential = Math.min(35, (issueCount * 4) + (missingKeywordCount * 3) + (suggestionCount * 2));
+  const floorBoost = currentScore < 50 ? 12 : currentScore < 70 ? 8 : 5;
+
+  return clampScore(currentScore + floorBoost + improvementPotential);
 };
 
 /**
@@ -148,8 +164,11 @@ export const analyzeResume = async ({
     throw new Error('Scanner returned an empty response. Please try again.');
   }
 
+  const currentScore = clampScore(hasJD ? result.matchScore ?? result.overallScore : result.overallScore);
+
   return {
-    score: Math.round(Number(hasJD ? result.matchScore ?? result.overallScore : result.overallScore) || 0),
+    score: currentScore,
+    projectedScore: Math.max(currentScore, estimateProjectedScore(currentScore, result, hasJD)),
     strengths: buildStrengths(result),
     missingKeywords: hasJD && Array.isArray(result.missingKeywords) ? result.missingKeywords : [],
     suggestions: buildSuggestions(result),

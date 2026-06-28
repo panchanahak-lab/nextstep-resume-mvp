@@ -183,7 +183,7 @@ const ScannerPage: React.FC = () => {
     }
   };
 
-  const printRevisedResume = (revisedResume: string, changes: SuggestedChange[]) => {
+  const openRevisedResumePreview = (revisedResume: string, changes: SuggestedChange[]) => {
     const highlightedHtml = changes.reduce((html, change) => {
       if (!change.replacement) return html;
       return html.replace(
@@ -192,31 +192,100 @@ const ScannerPage: React.FC = () => {
       );
     }, escapeHtml(revisedResume));
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
-    if (!printWindow) return;
-
-    printWindow.document.write(`
+    const previewHtml = `
       <!doctype html>
-      <html>
+      <html lang="en">
         <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>NextStep Revised Resume</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #111827; padding: 32px; line-height: 1.45; }
-            h1 { font-size: 18px; margin-bottom: 16px; }
-            pre { white-space: pre-wrap; font-family: inherit; font-size: 12px; }
+            :root { color-scheme: light; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              background: #eef2f7;
+              color: #111827;
+              font-family: Arial, sans-serif;
+              line-height: 1.45;
+            }
+            .toolbar {
+              position: sticky;
+              top: 0;
+              z-index: 2;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 14px 24px;
+              background: #ffffff;
+              border-bottom: 1px solid #dbe3ef;
+            }
+            .toolbar h1 { margin: 0; font-size: 18px; }
+            .toolbar p { margin: 3px 0 0; color: #526174; font-size: 13px; }
+            .print-button {
+              border: 0;
+              border-radius: 8px;
+              background: #2563eb;
+              color: #ffffff;
+              cursor: pointer;
+              font-weight: 700;
+              padding: 10px 16px;
+            }
+            .sheet {
+              width: min(8.5in, calc(100vw - 32px));
+              min-height: 11in;
+              margin: 24px auto;
+              background: #ffffff;
+              box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+              padding: 0.7in;
+            }
+            pre {
+              margin: 0;
+              white-space: pre-wrap;
+              font: inherit;
+              font-size: 12px;
+            }
             mark { background: #dcfce7; color: #166534; padding: 1px 3px; border-radius: 3px; }
-            @media print { body { padding: 0; } }
+            @page { size: A4; margin: 14mm; }
+            @media print {
+              body { background: #ffffff; }
+              .toolbar { display: none; }
+              .sheet {
+                width: auto;
+                min-height: auto;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+              }
+            }
           </style>
         </head>
         <body>
-          <h1>Revised Resume Draft</h1>
-          <pre>${highlightedHtml}</pre>
+          <header class="toolbar">
+            <div>
+              <h1>Revised Resume Draft</h1>
+              <p>Highlighted words are AI-suggested changes. Review before printing.</p>
+            </div>
+            <button class="print-button" type="button" onclick="window.print()">Print</button>
+          </header>
+          <main class="sheet">
+            <pre>${highlightedHtml}</pre>
+          </main>
         </body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    `;
+
+    const previewUrl = URL.createObjectURL(new Blob([previewHtml], { type: 'text/html' }));
+    const previewWindow = window.open(previewUrl, '_blank', 'width=900,height=1100');
+
+    if (!previewWindow) {
+      URL.revokeObjectURL(previewUrl);
+      window.alert('Please allow pop-ups to preview and print the revised draft.');
+      return;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
   };
 
   const handleScan = async () => {
@@ -573,6 +642,19 @@ const ScannerPage: React.FC = () => {
               <p className="text-neutral-500 mt-1">
                 {scanResult.score >= 80 ? COPY.ATS.highScore : scanResult.score >= 50 ? COPY.ATS.midScore : COPY.ATS.lowScore}
               </p>
+              <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-xl border border-neutral-200 bg-white text-left shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="border-r border-neutral-200 px-4 py-3 dark:border-neutral-700">
+                  <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Current</p>
+                  <p className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">{scanResult.score}/100</p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-green-600 dark:text-green-400">After changes</p>
+                  <p className="mt-1 text-lg font-semibold text-green-700 dark:text-green-300">{scanResult.projectedScore}/100</p>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                Estimated score after applying the suggested keywords and CV changes.
+              </p>
             </div>
           </div>
 
@@ -669,11 +751,11 @@ const ScannerPage: React.FC = () => {
                 {revisedResumeText && suggestedChanges.length > 0 && (
                   <Button
                     variant="secondary"
-                    onClick={() => printRevisedResume(revisedResumeText, suggestedChanges)}
+                    onClick={() => openRevisedResumePreview(revisedResumeText, suggestedChanges)}
                     className="inline-flex items-center justify-center gap-2"
                   >
                     <Printer className="h-4 w-4" />
-                    Print revised draft
+                    Preview & print revised draft
                   </Button>
                 )}
               </div>
