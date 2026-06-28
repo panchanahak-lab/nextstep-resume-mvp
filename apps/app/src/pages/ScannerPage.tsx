@@ -1296,8 +1296,21 @@ const ScannerPage: React.FC = () => {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {scanResult.better_bullet_suggestions.map((bullet, idx) => (
-                      <div key={idx} className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 text-sm">
-                        <p className="italic text-neutral-700 dark:text-neutral-300 font-medium">"{bullet}"</p>
+                      <div key={idx} className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 text-sm space-y-3">
+                        {typeof bullet === 'object' && bullet !== null ? (
+                          <>
+                            <div>
+                              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1 block">Current</span>
+                              <p className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-900 dark:text-yellow-200 p-2 rounded border border-yellow-200 dark:border-yellow-800/50">{bullet.original}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1 block">Suggested (Copy-Paste Ready)</span>
+                              <p className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200 p-2 rounded border border-green-200 dark:border-green-800/50 font-medium select-all cursor-text">{bullet.improved}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="italic text-neutral-700 dark:text-neutral-300 font-medium">"{bullet}"</p>
+                        )}
                       </div>
                     ))}
                   </div>

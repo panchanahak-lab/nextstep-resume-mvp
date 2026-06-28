@@ -59,7 +59,7 @@ export interface ATSScanResult {
   };
   
   suggestions: string[];
-  better_bullet_suggestions: string[];
+  better_bullet_suggestions: { original: string; improved: string }[];
   improved_summary_suggestion: string;
   section_wise_guidance: string[];
   

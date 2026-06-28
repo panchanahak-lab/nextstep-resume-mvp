@@ -80,7 +80,14 @@ const analyzeResumeSchema = {
     },
     better_bullet_suggestions: {
       type: "ARRAY",
-      items: { type: "STRING" },
+      items: { 
+        type: "OBJECT",
+        properties: {
+          original: { type: "STRING", description: "The original bullet point text." },
+          improved: { type: "STRING", description: "The improved and rewritten bullet point text." }
+        },
+        required: ["original", "improved"]
+      },
       description: "Examples of rewritten bullet points showing before/after improvement."
     },
     improved_summary_suggestion: {
