@@ -22,6 +22,7 @@ const DashboardPage: React.FC = () => {
   });
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [greetingInfo, setGreetingInfo] = useState({ name: '', isFirstLogin: true });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -31,6 +32,26 @@ const DashboardPage: React.FC = () => {
         if (!supabase) return;
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const displayName = profile?.full_name
+          || user.user_metadata?.full_name
+          || user.user_metadata?.name
+          || (user.email ? user.email.split('@')[0] : '');
+
+        const firstName = displayName ? displayName.split(' ')[0] : '';
+        const capitalizedName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : '';
+
+        const created = new Date(user.created_at || '').getTime();
+        const lastSignIn = new Date(user.last_sign_in_at || '').getTime();
+        const isFirst = isNaN(lastSignIn) || isNaN(created) || (lastSignIn - created < 10000);
+        
+        setGreetingInfo({ name: capitalizedName, isFirstLogin: isFirst });
 
         // Fetch scans
         const { data: scansData } = await supabase
@@ -90,7 +111,9 @@ const DashboardPage: React.FC = () => {
           <div>
             <span className="app-pill">AI-powered career readiness</span>
             <h1 className="mt-5 max-w-3xl text-3xl font-extrabold leading-tight text-neutral-950 dark:text-white sm:text-4xl lg:text-5xl">
-              Welcome back. Your next step is ready.
+              {greetingInfo.isFirstLogin 
+                ? `Welcome${greetingInfo.name ? ` ${greetingInfo.name}` : ''}. Your next step is ready.` 
+                : `Welcome back${greetingInfo.name ? `, ${greetingInfo.name}` : ''}. Your next step is ready.`}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 app-muted">
               Keep building from the same flow you started on the landing page: improve your resume, scan it for ATS, and practice interviews before applying.
