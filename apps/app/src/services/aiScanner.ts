@@ -7,7 +7,18 @@ export interface ATSScanResult {
   strengths: string[];
   missingKeywords: string[];
   suggestions: string[];
+  issues: ResumeIssue[];
+  improvedSummary?: string;
   mode: ScanMode;
+}
+
+export interface ResumeIssue {
+  title?: string;
+  location?: string;
+  description?: string;
+  highlight?: string;
+  suggestion?: string;
+  severity?: string;
 }
 
 interface AnalyzeResumeInput {
@@ -24,11 +35,10 @@ interface EdgeAtsResult {
   optimizationPlan?: string[];
   readinessSummary?: string;
   improvedSummary?: string;
-  issues?: Array<{
-    title?: string;
-    suggestion?: string;
-    severity?: string;
-  }>;
+  formattingScore?: number;
+  keywordScore?: number;
+  sectionScores?: Record<string, number>;
+  issues?: ResumeIssue[];
 }
 
 const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
@@ -53,22 +63,35 @@ const textToBase64 = (text: string) => {
 const buildStrengths = (result: EdgeAtsResult) => {
   const strengths: string[] = [];
 
-  if (result.readinessSummary) strengths.push(result.readinessSummary);
-  if (Array.isArray(result.detectedKeywords) && result.detectedKeywords.length > 0) {
-    strengths.push(`Detected relevant keywords: ${result.detectedKeywords.slice(0, 8).join(', ')}.`);
-  }
-  if (result.improvedSummary) strengths.push('AI generated an improved professional summary you can apply.');
+  Object.entries(result.sectionScores || {}).forEach(([section, score]) => {
+    if (Number(score) >= 75) {
+      strengths.push(`Strong ${section} section score (${Math.round(Number(score))}/100).`);
+    }
+  });
 
-  return strengths.length > 0 ? strengths : ['Resume analysis completed successfully.'];
+  if (Number(result.formattingScore) >= 75) {
+    strengths.push(`Clean formatting score (${Math.round(Number(result.formattingScore))}/100).`);
+  }
+
+  if (Number(result.keywordScore) >= 75) {
+    strengths.push(`Strong keyword coverage score (${Math.round(Number(result.keywordScore))}/100).`);
+  }
+
+  if (Array.isArray(result.detectedKeywords) && result.detectedKeywords.length > 0) {
+    strengths.push(`Includes relevant keywords: ${result.detectedKeywords.slice(0, 8).join(', ')}.`);
+  }
+
+  return strengths;
 };
 
 const buildSuggestions = (result: EdgeAtsResult) => {
   const suggestions = [
+    result.readinessSummary || '',
     ...(Array.isArray(result.optimizationPlan) ? result.optimizationPlan : []),
     ...(Array.isArray(result.issues)
       ? result.issues.map((issue) => issue.suggestion || issue.title || '').filter(Boolean)
       : []),
-  ];
+  ].filter(Boolean);
 
   return Array.from(new Set(suggestions)).slice(0, 8);
 };
@@ -130,6 +153,8 @@ export const analyzeResume = async ({
     strengths: buildStrengths(result),
     missingKeywords: hasJD && Array.isArray(result.missingKeywords) ? result.missingKeywords : [],
     suggestions: buildSuggestions(result),
+    issues: Array.isArray(result.issues) ? result.issues : [],
+    improvedSummary: result.improvedSummary,
     mode,
   };
 };

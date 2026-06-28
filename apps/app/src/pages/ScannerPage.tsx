@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, X, Search, AlertCircle, CheckCircle2, Loader2, Info, Clock } from 'lucide-react';
+import { UploadCloud, FileText, X, AlertCircle, CheckCircle2, Loader2, Info, Clock, Printer } from 'lucide-react';
 import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import Badge from '../../../../packages/shared/src/components/Badge';
@@ -7,7 +7,7 @@ import Textarea from '../../../../packages/shared/src/components/Textarea';
 import ScoreGauge from '../components/ScoreGauge';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
 import { extractTextFromFile, type ParseResult } from '../utils/documentParser';
-import { analyzeResume, type ATSScanResult } from '../services/aiScanner';
+import { analyzeResume, type ATSScanResult, type ResumeIssue } from '../services/aiScanner';
 
 interface ScanHistoryItem {
   id: string;
@@ -15,6 +15,91 @@ interface ScanHistoryItem {
   score: number;
   mode: string;
 }
+
+interface SuggestedChange {
+  original: string;
+  replacement: string;
+  suggestion: string;
+}
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const extractQuotedReplacement = (suggestion = '') => {
+  const patterns = [
+    /replace\s+["'“”](.+?)["'“”]\s+with\s+["'“”](.+?)["'“”]/i,
+    /replace\s+(.+?)\s+with\s+["'“”](.+?)["'“”]/i,
+    /(?:correct|change|update)\s+["'“”](.+?)["'“”]\s+(?:to|as)\s+["'“”](.+?)["'“”]/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = suggestion.match(pattern);
+    if (match?.[1] && match?.[2]) {
+      return {
+        original: match[1].trim(),
+        replacement: match[2].trim(),
+      };
+    }
+  }
+
+  return null;
+};
+
+const buildSuggestedChanges = (issues: ResumeIssue[]) => {
+  return issues
+    .map((issue) => {
+      const replacement = extractQuotedReplacement(issue.suggestion);
+      if (!replacement) return null;
+
+      return {
+        original: issue.highlight || replacement.original,
+        replacement: replacement.replacement,
+        suggestion: issue.suggestion || issue.title || '',
+      };
+    })
+    .filter((change): change is SuggestedChange => Boolean(change?.original && change?.replacement));
+};
+
+const applySuggestedChanges = (resume: string, changes: SuggestedChange[]) => {
+  return changes.reduce((draft, change) => {
+    if (!change.original || !draft.includes(change.original)) return draft;
+    return draft.replace(change.original, change.replacement);
+  }, resume);
+};
+
+const getHighlightedParts = (originalResume: string, revisedResume: string, changes: SuggestedChange[]) => {
+  const matches = changes
+    .map((change) => {
+      const index = revisedResume.indexOf(change.replacement);
+      return index >= 0
+        ? { index, text: change.replacement, original: change.original }
+        : null;
+    })
+    .filter((match): match is { index: number; text: string; original: string } => Boolean(match))
+    .sort((a, b) => a.index - b.index);
+
+  const parts: Array<{ text: string; changed: boolean; original?: string }> = [];
+  let cursor = 0;
+
+  matches.forEach((match) => {
+    if (match.index < cursor) return;
+    if (match.index > cursor) {
+      parts.push({ text: revisedResume.slice(cursor, match.index), changed: false });
+    }
+    parts.push({ text: match.text, changed: true, original: match.original });
+    cursor = match.index + match.text.length;
+  });
+
+  if (cursor < revisedResume.length) {
+    parts.push({ text: revisedResume.slice(cursor), changed: false });
+  }
+
+  return parts.length > 0 ? parts : [{ text: originalResume, changed: false }];
+};
 
 const ScannerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
@@ -39,6 +124,7 @@ const ScannerPage: React.FC = () => {
   const [scanError, setScanError] = useState('');
   const [parseWarning, setParseWarning] = useState('');
   const [scanResult, setScanResult] = useState<ATSScanResult | null>(null);
+  const [scannedResumeText, setScannedResumeText] = useState('');
 
   // History State
   const [historyItems, setHistoryItems] = useState<ScanHistoryItem[]>([]);
@@ -97,6 +183,42 @@ const ScannerPage: React.FC = () => {
     }
   };
 
+  const printRevisedResume = (revisedResume: string, changes: SuggestedChange[]) => {
+    const highlightedHtml = changes.reduce((html, change) => {
+      if (!change.replacement) return html;
+      return html.replace(
+        escapeHtml(change.replacement),
+        `<mark>${escapeHtml(change.replacement)}</mark>`,
+      );
+    }, escapeHtml(revisedResume));
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>NextStep Revised Resume</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; padding: 32px; line-height: 1.45; }
+            h1 { font-size: 18px; margin-bottom: 16px; }
+            pre { white-space: pre-wrap; font-family: inherit; font-size: 12px; }
+            mark { background: #dcfce7; color: #166534; padding: 1px 3px; border-radius: 3px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>Revised Resume Draft</h1>
+          <pre>${highlightedHtml}</pre>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   const handleScan = async () => {
     setScanError('');
     setParseWarning('');
@@ -147,6 +269,7 @@ const ScannerPage: React.FC = () => {
         jobDescription,
       });
       setScanResult(result);
+      setScannedResumeText(finalResumeText.trim() && finalResumeText !== file?.name ? finalResumeText : '');
       setShowResults(true);
       
       // Save to Supabase
@@ -206,6 +329,14 @@ const ScannerPage: React.FC = () => {
       setUrlSuccess('Job details fetched successfully');
     }, 1500);
   };
+
+  const suggestedChanges = scanResult ? buildSuggestedChanges(scanResult.issues) : [];
+  const revisedResumeText = scannedResumeText && suggestedChanges.length > 0
+    ? applySuggestedChanges(scannedResumeText, suggestedChanges)
+    : scannedResumeText;
+  const highlightedResumeParts = scannedResumeText && revisedResumeText
+    ? getHighlightedParts(scannedResumeText, revisedResumeText, suggestedChanges)
+    : [];
 
   return (
     <div>
@@ -455,16 +586,22 @@ const ScannerPage: React.FC = () => {
                 </svg>
                 Strengths
               </h3>
-              <ul className="space-y-2">
-                {scanResult.strengths.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 flex-shrink-0 mt-0.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              {scanResult.strengths.length > 0 ? (
+                <ul className="space-y-2">
+                  {scanResult.strengths.map((item, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500 flex-shrink-0 mt-0.5">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  No clear strengths were found in this scan.
+                </p>
+              )}
             </Card>
 
             {/* Missing Keywords — only shown in ATS match mode */}
@@ -517,6 +654,100 @@ const ScannerPage: React.FC = () => {
               </ul>
             </Card>
           </div>
+
+          {(scanResult.issues.length > 0 || suggestedChanges.length > 0) && (
+            <Card className="mt-6 p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-primary-700 dark:text-primary-300 mb-1">
+                    Suggested CV Changes
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Review the exact text the AI found, then use the revised draft below to print a highlighted copy.
+                  </p>
+                </div>
+                {revisedResumeText && suggestedChanges.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => printRevisedResume(revisedResumeText, suggestedChanges)}
+                    className="inline-flex items-center justify-center gap-2"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print revised draft
+                  </Button>
+                )}
+              </div>
+
+              {scanResult.improvedSummary && (
+                <div className="mt-5 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/50 dark:bg-green-950/30">
+                  <p className="text-sm font-semibold text-green-800 dark:text-green-300">Suggested professional summary</p>
+                  <p className="mt-2 text-sm text-green-900 dark:text-green-200">{scanResult.improvedSummary}</p>
+                </div>
+              )}
+
+              {scanResult.issues.length > 0 && (
+                <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {scanResult.issues.map((issue, index) => (
+                    <div key={`${issue.title || 'issue'}-${index}`} className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                            {issue.title || `Issue #${index + 1}`}
+                          </p>
+                          {issue.location && (
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">{issue.location}</p>
+                          )}
+                        </div>
+                        {issue.severity && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold capitalize text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            {issue.severity}
+                          </span>
+                        )}
+                      </div>
+                      {issue.highlight && (
+                        <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">
+                          <span className="font-semibold">Current text: </span>
+                          <mark className="bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-100">{issue.highlight}</mark>
+                        </div>
+                      )}
+                      {issue.suggestion && (
+                        <div className="rounded-md bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950/30 dark:text-green-200">
+                          <span className="font-semibold">Suggested change: </span>
+                          {issue.suggestion}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scannedResumeText && suggestedChanges.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="mb-2 text-sm font-semibold text-neutral-900 dark:text-white">Highlighted revised draft</h4>
+                  <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-950">
+                    <pre className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
+                      {highlightedResumeParts.map((part, index) => (
+                        part.changed ? (
+                          <mark
+                            key={`${part.text}-${index}`}
+                            className="rounded bg-green-100 px-1 text-green-900 dark:bg-green-900/50 dark:text-green-100"
+                            title={part.original ? `Original: ${part.original}` : undefined}
+                          >
+                            {part.text}
+                          </mark>
+                        ) : (
+                          <React.Fragment key={`${part.text}-${index}`}>{part.text}</React.Fragment>
+                        )
+                      ))}
+                    </pre>
+                  </div>
+                  <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                    Highlighted words are AI-suggested replacements. Review before using the draft.
+                  </p>
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       )}
       </div>
