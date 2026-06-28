@@ -20,6 +20,57 @@ export interface ResumeIssue {
   suggestion?: string;
 }
 
+export interface StructuredResumeData {
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+  };
+  headline?: string;
+  summary?: string;
+  skills?: string[];
+  experience?: Array<{
+    id?: string;
+    job_title?: string;
+    company?: string;
+    start_date?: string;
+    end_date?: string;
+    bullets?: string[];
+  }>;
+  education?: Array<{
+    id?: string;
+    degree?: string;
+    institute?: string;
+    year?: string;
+  }>;
+  projects?: Array<{
+    id?: string;
+    name?: string;
+    description?: string;
+    tools?: string[];
+  }>;
+  certifications?: string[];
+  additional_information?: string[];
+  languages?: string[];
+}
+
+export interface ResumePatch {
+  patch_id: string;
+  target_section: string;
+  target_item_id?: string;
+  issue_type: string;
+  operation: string;
+  anchor_text: string;
+  original_text: string;
+  replacement_text: string;
+  explanation: string;
+  inserted_keywords: string[];
+  confidence: number;
+  apply_by_default: boolean;
+  requires_manual_review: boolean;
+}
+
 export interface ATSScanResult {
   id: string;
   created_at: string;
@@ -74,6 +125,14 @@ export interface ATSScanResult {
   
   // Tracked changes issues (machine-readable patches)
   issues: ResumeIssue[];
+  parsed_resume_data?: StructuredResumeData;
+  revised_resume_data?: StructuredResumeData;
+  patches?: ResumePatch[];
+  manual_review_patches?: ResumePatch[];
+  inserted_keywords?: string[];
+  manual_review_keywords?: string[];
+  revision_id?: string;
+  template_id?: string;
   
   // Versioning & caching
   scoring_version?: string;
@@ -84,6 +143,13 @@ export interface ATSScanResult {
   // Compatibility fields for the original UI features
   score: number;
   projectedScore: number;
+  parsedResumeData?: StructuredResumeData;
+  revisedResumeData?: StructuredResumeData;
+  manualReviewPatches?: ResumePatch[];
+  insertedKeywords?: string[];
+  manualReviewKeywords?: string[];
+  templateId?: string;
+  revisionId?: string;
   strengths: string[];
   missingKeywords: string[];
   improvedSummary?: string;
@@ -158,6 +224,7 @@ export const analyzeResume = async ({
       jobDescription,
       jobRole,
       resumeId: resumeId || null,
+      generateRevisedDraft: true,
     },
   });
 
@@ -188,6 +255,14 @@ export const analyzeResume = async ({
     suggestions: result.suggestions || [],
     issues: result.issues || [],
     improvedSummary: result.improved_summary_suggestion,
+    parsedResumeData: result.parsed_resume_data,
+    revisedResumeData: result.revised_resume_data,
+    patches: result.patches || [],
+    manualReviewPatches: result.manual_review_patches || [],
+    insertedKeywords: result.inserted_keywords || [],
+    manualReviewKeywords: result.manual_review_keywords || [],
+    templateId: result.template_id,
+    revisionId: result.revision_id,
     mode,
   };
 };

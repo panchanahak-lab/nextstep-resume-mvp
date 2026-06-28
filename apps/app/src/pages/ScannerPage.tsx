@@ -44,6 +44,60 @@ interface SuggestedChange {
   suggestion: string;
 }
 
+const scanStages = [
+  'Uploading your resume securely...',
+  'Reading your resume sections...',
+  'Parsing contact, education, experience, skills, and projects...',
+  'Checking ATS readability...',
+  'Matching keywords with your target role...',
+  'Preparing improvement suggestions...',
+  'Generating revised ATS-friendly CV...',
+  'Finalizing report...',
+];
+
+const ResumeScanProgress: React.FC<{ stageIndex: number }> = ({ stageIndex }) => {
+  const progress = Math.min(92, 10 + stageIndex * 11);
+
+  return (
+    <Card className="mt-5 max-w-3xl p-5" aria-busy="true">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+            {scanStages[Math.min(stageIndex, scanStages.length - 1)]}
+          </p>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+            NextStep is analyzing the resume and preparing a revised ATS-friendly draft.
+          </p>
+        </div>
+        <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+      </div>
+      <div
+        className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {scanStages.map((stage, index) => (
+          <div
+            key={stage}
+            className={`rounded-lg border px-3 py-2 text-xs ${
+              index <= stageIndex
+                ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900/60 dark:bg-primary-950/30 dark:text-primary-300'
+                : 'border-neutral-200 bg-white text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900'
+            }`}
+          >
+            {stage.replace('...', '')}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -171,6 +225,43 @@ const diffPartsToHtml = (parts: DiffPart[]) => {
 const resumeTextToHtml = (resume: string) =>
   applyHeadingStyling(escapeHtml(resume).replace(/\n/g, '<br />'));
 
+const structuredResumeToText = (resume: ATSScanResult['revisedResumeData'], fallback = '') => {
+  if (!resume) return fallback;
+  const lines: string[] = [];
+  const contact = resume.contact || {};
+  if (contact.name) lines.push(contact.name);
+  if (resume.headline) lines.push(resume.headline);
+  const contactLine = [contact.location, contact.email, contact.phone].filter(Boolean).join(' | ');
+  if (contactLine) lines.push(contactLine);
+  if (resume.summary) lines.push('', 'SUMMARY', resume.summary);
+  if (resume.experience?.length) {
+    lines.push('', 'EXPERIENCE');
+    resume.experience.forEach((item) => {
+      lines.push([item.job_title, item.company].filter(Boolean).join(' | '));
+      const dates = [item.start_date, item.end_date].filter(Boolean).join(' - ');
+      if (dates) lines.push(dates);
+      item.bullets?.forEach((bullet) => lines.push(`- ${bullet}`));
+    });
+  }
+  if (resume.skills?.length) lines.push('', 'SKILLS', resume.skills.join(' | '));
+  if (resume.projects?.length) {
+    lines.push('', 'PROJECTS');
+    resume.projects.forEach((project) => {
+      lines.push(project.name || 'Project');
+      if (project.description) lines.push(project.description);
+      if (project.tools?.length) lines.push(`Tools: ${project.tools.join(', ')}`);
+    });
+  }
+  if (resume.education?.length) {
+    lines.push('', 'EDUCATION');
+    resume.education.forEach((item) => lines.push([item.degree, item.institute, item.year].filter(Boolean).join(' | ')));
+  }
+  if (resume.certifications?.length) lines.push('', 'CERTIFICATIONS', ...resume.certifications);
+  if (resume.languages?.length) lines.push('', 'LANGUAGES', resume.languages.join(' | '));
+  if (resume.additional_information?.length) lines.push('', 'ADDITIONAL INFORMATION', ...resume.additional_information);
+  return lines.join('\n').trim() || fallback;
+};
+
 const ScannerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
   const [resumeText, setResumeText] = useState('');
@@ -197,6 +288,8 @@ const ScannerPage: React.FC = () => {
   const [parseWarning, setParseWarning] = useState('');
   const [scanResult, setScanResult] = useState<ATSScanResult | null>(null);
   const [scannedResumeText, setScannedResumeText] = useState('');
+  const [scanStageIndex, setScanStageIndex] = useState(0);
+  const [resumeView, setResumeView] = useState<'original' | 'revised'>('revised');
 
   // History State
   const [historyItems, setHistoryItems] = useState<ScanHistoryItem[]>([]);
@@ -215,6 +308,15 @@ const ScannerPage: React.FC = () => {
       fetchHistory();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!isScanning) return undefined;
+    setScanStageIndex(0);
+    const timer = window.setInterval(() => {
+      setScanStageIndex((current) => Math.min(scanStages.length - 2, current + 1));
+    }, 1400);
+    return () => window.clearInterval(timer);
+  }, [isScanning]);
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
@@ -294,6 +396,7 @@ const ScannerPage: React.FC = () => {
 
       setScanResult(result);
       setScannedResumeText(finalResumeText.trim() && finalResumeText !== file?.name ? finalResumeText : '');
+      setResumeView('revised');
       setShowResults(true);
       setSaveSuccess(!result.save_failed);
       setRetrySaving(false);
@@ -672,15 +775,17 @@ const ScannerPage: React.FC = () => {
 
   /** Download revised CV directly (no popup). */
   const downloadRevisedCV = () => {
-    if (!scannedResumeText || !scanResult) return;
+    if (!scanResult || (!scannedResumeText && !scanResult.revisedResumeData)) return;
 
     // Determine which changes to apply
     const safeIssues = (scanResult.issues || []).filter(i => i.apply_by_default !== false && i.original_text && i.replacement_text);
     const manualIssues = (scanResult.issues || []).filter(i => i.apply_by_default === false || !i.original_text || !i.replacement_text);
     const changesToApply = applyChanges ? buildSuggestedChanges(safeIssues) : [];
 
-    // Apply safe patches
-    let revisedText = applySuggestedChanges(scannedResumeText, changesToApply);
+    // Apply safe patches or use the structured revised draft from the backend.
+    let revisedText = applyChanges && scanResult.revisedResumeData
+      ? structuredResumeToText(scanResult.revisedResumeData, scannedResumeText)
+      : applySuggestedChanges(scannedResumeText, changesToApply);
 
     // Insert suggested keywords naturally into the Skills or Summary section
     if (includeKeywords && scanResult.missing_keywords?.length > 0) {
@@ -741,7 +846,7 @@ const ScannerPage: React.FC = () => {
 
   const suggestedChanges = scanResult ? buildSuggestedChanges(scanResult.issues) : [];
   const canPreviewRevisedResume = Boolean(scannedResumeText && suggestedChanges.length > 0);
-  const canDownloadRevisedResume = Boolean(scannedResumeText && scanResult);
+  const canDownloadRevisedResume = Boolean(scanResult && (scannedResumeText || scanResult.revisedResumeData));
   const diffParts = canPreviewRevisedResume
     ? buildDiffParts(scannedResumeText, suggestedChanges)
     : [];
@@ -974,12 +1079,13 @@ const ScannerPage: React.FC = () => {
             <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold flex items-center justify-center gap-2" onClick={handleScan} disabled={isScanning}>
               {isScanning ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" /> Scanning...
+                  <Loader2 className="w-5 h-5 animate-spin" /> Preparing scan...
                 </>
               ) : (
                 'Scan My Resume'
               )}
             </Button>
+            {isScanning && <ResumeScanProgress stageIndex={scanStageIndex} />}
             {scanError && (
               <p className="mt-3 text-sm text-red-600 flex items-center gap-1 font-medium">
                 <AlertCircle className="w-4 h-4" /> {scanError}
@@ -1544,6 +1650,40 @@ const ScannerPage: React.FC = () => {
                     <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 italic">
                       We applied safe suggested changes to an ATS-friendly revised draft. Please review before final use.
                     </p>
+                  )}
+
+                  {(scanResult.revisedResumeData || scannedResumeText) && (
+                    <div className="mt-5">
+                      <div className="flex border-b border-neutral-200 dark:border-neutral-800">
+                        <button
+                          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+                            resumeView === 'original'
+                              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                              : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                          }`}
+                          onClick={() => setResumeView('original')}
+                        >
+                          Original Resume
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+                            resumeView === 'revised'
+                              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                              : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                          }`}
+                          onClick={() => setResumeView('revised')}
+                        >
+                          Revised ATS-Friendly Resume
+                        </button>
+                      </div>
+                      <div className="max-h-[420px] overflow-auto rounded-b-lg border border-t-0 border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-950">
+                        <pre className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
+                          {resumeView === 'original'
+                            ? structuredResumeToText(scanResult.parsedResumeData, scannedResumeText || 'Original resume preview is not available.')
+                            : structuredResumeToText(scanResult.revisedResumeData, scannedResumeText || 'Revised resume preview is not available.')}
+                        </pre>
+                      </div>
+                    </div>
                   )}
 
                   {scanResult.improvedSummary && (

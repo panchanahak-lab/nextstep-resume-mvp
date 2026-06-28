@@ -194,6 +194,21 @@ export const createResumePdfBlob = (data: ResumeData) => {
       });
   }
 
+  if (data.certifications?.length) {
+    addSection('Certifications');
+    addParagraph(data.certifications.join('  |  '), 8);
+  }
+
+  if (data.languages?.length) {
+    addSection('Languages');
+    addParagraph(data.languages.join('  |  '), 8);
+  }
+
+  if (data.additionalInformation?.length) {
+    addSection('Additional Information');
+    data.additionalInformation.forEach((item) => addParagraph(item, 4));
+  }
+
   const objects: string[] = [];
   const addObject = (content: string) => {
     objects.push(content);

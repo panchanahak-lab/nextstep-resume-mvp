@@ -44,6 +44,159 @@ function safeNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function uniqStrings(arr: unknown[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of arr) {
+    const value = String(item ?? "").trim();
+    const key = value.toLowerCase();
+    if (value && !seen.has(key)) {
+      seen.add(key);
+      result.push(value);
+    }
+  }
+  return result;
+}
+
+function splitLines(text: string): string[] {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function parseStructuredResume(text: string, aiResult: Record<string, any>) {
+  const lines = splitLines(text);
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const phone = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.trim() || "";
+  const name = lines.find((line) => !line.includes("@") && !/\d{4,}/.test(line) && line.length <= 60) || "Revised Resume";
+  const skills = uniqStrings([
+    ...(Array.isArray(aiResult.matched_skills) ? aiResult.matched_skills : []),
+    ...(Array.isArray(aiResult.matched_keywords) ? aiResult.matched_keywords : []),
+  ]).slice(0, 16);
+  const bullets = lines
+    .filter((line) => /^[-*•]|\b(managed|led|created|designed|developed|implemented|improved|coordinated|handled)\b/i.test(line))
+    .map((line) => line.replace(/^[-*•]\s*/, ""))
+    .slice(0, 8);
+
+  return {
+    contact: { name, email, phone, location: "" },
+    headline: "",
+    summary: typeof aiResult.improved_summary_suggestion === "string" ? aiResult.improved_summary_suggestion : "",
+    skills,
+    experience: bullets.length > 0 ? [{
+      id: crypto.randomUUID(),
+      job_title: "",
+      company: "",
+      start_date: "",
+      end_date: "",
+      bullets,
+    }] : [],
+    education: [],
+    projects: [],
+    certifications: [],
+    additional_information: [],
+    languages: [],
+  };
+}
+
+function issueToPatch(issue: Record<string, any>, index: number) {
+  const confidenceText = String(issue.confidence || "medium").toLowerCase();
+  const confidence = confidenceText === "high" ? 0.9 : confidenceText === "low" ? 0.35 : 0.65;
+  const requiresManualReview = issue.apply_by_default === false || !String(issue.replacement_text || "").trim();
+
+  return {
+    patch_id: crypto.randomUUID(),
+    target_section: String(issue.target_section || issue.location || "other"),
+    target_item_id: "",
+    issue_type: String(issue.issue_type || "formatting_issue"),
+    operation: "replace",
+    anchor_text: String(issue.original_text || issue.highlight || ""),
+    original_text: String(issue.original_text || issue.highlight || ""),
+    replacement_text: String(issue.replacement_text || ""),
+    explanation: String(issue.explanation || issue.description || issue.suggestion || `Suggested resume improvement #${index + 1}.`),
+    inserted_keywords: [],
+    confidence,
+    apply_by_default: !requiresManualReview,
+    requires_manual_review: requiresManualReview,
+  };
+}
+
+function applyTextPatches(text: string, patches: Array<Record<string, any>>) {
+  return patches.reduce((draft, patch) => {
+    const original = String(patch.original_text || "");
+    const replacement = String(patch.replacement_text || "");
+    if (!original || !replacement || !draft.includes(original)) return draft;
+    return draft.replace(original, replacement);
+  }, text);
+}
+
+function buildRevisedResumeData(originalText: string, aiResult: Record<string, any>, safePatches: Array<Record<string, any>>, insertedKeywords: string[]) {
+  const revisedText = applyTextPatches(originalText, safePatches);
+  const parsed = parseStructuredResume(originalText, aiResult);
+  const revised = parseStructuredResume(revisedText, aiResult);
+  revised.summary = typeof aiResult.improved_summary_suggestion === "string" && aiResult.improved_summary_suggestion.trim()
+    ? aiResult.improved_summary_suggestion.trim()
+    : parsed.summary;
+  revised.skills = uniqStrings([...(revised.skills || []), ...insertedKeywords]).slice(0, 18);
+
+  if (Array.isArray(aiResult.better_bullet_suggestions) && aiResult.better_bullet_suggestions.length > 0) {
+    revised.experience = [{
+      id: crypto.randomUUID(),
+      job_title: parsed.experience?.[0]?.job_title || "",
+      company: parsed.experience?.[0]?.company || "",
+      start_date: "",
+      end_date: "",
+      bullets: aiResult.better_bullet_suggestions
+        .map((item: Record<string, unknown>) => String(item.improved || "").trim())
+        .filter(Boolean)
+        .slice(0, 8),
+    }];
+  }
+
+  return { parsed, revised };
+}
+
+async function saveResumeRevision(params: {
+  userId: string;
+  sourceType: string;
+  jobRole: string;
+  jobDescription: string;
+  parsedResumeData: Record<string, unknown>;
+  revisedResumeData: Record<string, unknown>;
+  appliedPatches: Array<Record<string, unknown>>;
+  manualReviewPatches: Array<Record<string, unknown>>;
+  insertedKeywords: string[];
+  currentScore: number;
+  afterChangesScore: number;
+}) {
+  try {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from("resume_revisions")
+      .insert({
+        user_id: params.userId,
+        source_type: params.sourceType,
+        target_job_role: params.jobRole || null,
+        job_description: params.jobDescription || null,
+        original_resume_data: params.parsedResumeData,
+        revised_resume_data: params.revisedResumeData,
+        applied_patches: params.appliedPatches,
+        manual_review_patches: params.manualReviewPatches,
+        inserted_keywords: params.insertedKeywords,
+        template_id: "nextstep-ats-modern",
+        current_score: params.currentScore,
+        after_changes_score: params.afterChangesScore,
+        scoring_version: SCORING_VERSION,
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return data?.id as string | undefined;
+  } catch (error) {
+    logError("Resume revision save failed", error, crypto.randomUUID());
+    return undefined;
+  }
+}
+
 // ---------- Gemini schema ----------
 
 const analyzeResumeSchema = {
@@ -490,6 +643,46 @@ ${jobDescription.trim() ? `JOB DESCRIPTION:\n${jobDescription.trim()}\n\n` : ""}
     const competitiveFloor = hasActionableChanges ? 85 : projected;
     const projected_score = Math.max(0, Math.min(98, Math.max(projected, competitiveFloor)));
 
+    const normalizedPatches = issues.map(issueToPatch);
+    const safePatches = normalizedPatches.filter((patch) => {
+      const original = String(patch.original_text || "");
+      const replacement = String(patch.replacement_text || "");
+      return patch.apply_by_default && original && replacement && original !== replacement && (resumeText || "").includes(original);
+    });
+    const manualReviewPatches = normalizedPatches
+      .filter((patch) => !safePatches.some((safePatch) => safePatch.patch_id === patch.patch_id))
+      .map((patch) => ({ ...patch, apply_by_default: false, requires_manual_review: true }));
+    const inserted_keywords = uniqStrings([
+      ...safePatches.flatMap((patch) => patch.inserted_keywords || []),
+      ...matched_keywords.filter((keyword) => !(resumeText || "").toLowerCase().includes(keyword.toLowerCase())).slice(0, 6),
+    ]);
+    const manual_review_keywords = missing_keywords.slice(0, 12);
+    const { parsed: parsed_resume_data, revised: revised_resume_data } = buildRevisedResumeData(
+      resumeText || file?.name || "",
+      {
+        ...aiResult,
+        matched_keywords,
+        matched_skills,
+        better_bullet_suggestions,
+        improved_summary_suggestion,
+      },
+      safePatches,
+      inserted_keywords,
+    );
+    const revision_id = await saveResumeRevision({
+      userId: user.id,
+      sourceType: file?.mimeType?.includes("pdf") ? "uploaded_pdf" : file?.mimeType?.includes("word") ? "uploaded_docx" : "pasted_text",
+      jobRole,
+      jobDescription,
+      parsedResumeData: parsed_resume_data,
+      revisedResumeData: revised_resume_data,
+      appliedPatches: safePatches,
+      manualReviewPatches,
+      insertedKeywords: inserted_keywords,
+      currentScore: final_score,
+      afterChangesScore: projected_score,
+    });
+
     // ---------- 8. Save the scan result in Supabase (with retry) ----------
 
     const supabase = getServiceClient();
@@ -521,6 +714,14 @@ ${jobDescription.trim() ? `JOB DESCRIPTION:\n${jobDescription.trim()}\n\n` : ""}
       improved_summary_suggestion: improved_summary_suggestion || null,
       section_wise_guidance,
       issues,
+      parsed_resume_data,
+      revised_resume_data,
+      patches: safePatches,
+      manual_review_patches: manualReviewPatches,
+      inserted_keywords,
+      manual_review_keywords,
+      revision_id: revision_id || null,
+      template_id: "nextstep-ats-modern",
       scoring_version: SCORING_VERSION,
       scan_hash: scan_hash || null,
       projected_score,
