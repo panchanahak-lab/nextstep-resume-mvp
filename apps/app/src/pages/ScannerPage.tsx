@@ -110,35 +110,47 @@ const ScannerPage: React.FC = () => {
     setIsScanning(true);
     try {
       let finalResumeText = resumeText;
+      const shouldAnalyzeUploadedFile = Boolean(file && !resumeText.trim() && file.name.toLowerCase().endsWith('.pdf'));
 
       if (file && !resumeText.trim()) {
         const parseResult: ParseResult = await extractTextFromFile(file);
 
         if (parseResult.warning && !parseResult.text) {
-          setParseWarning(parseResult.warning);
-          setIsScanning(false);
-          return;
+          if (file.name.toLowerCase().endsWith('.pdf')) {
+            setParseWarning('We could not preview the resume text, but we will scan the uploaded PDF directly.');
+            finalResumeText = file.name;
+          } else {
+            setParseWarning(parseResult.warning);
+            setIsScanning(false);
+            return;
+          }
         }
 
         if (parseResult.warning && parseResult.text) {
           setParseWarning(parseResult.warning);
         }
 
-        finalResumeText = parseResult.text;
+        if (parseResult.text) {
+          finalResumeText = parseResult.text;
+        }
       }
 
-      if (!finalResumeText.trim()) {
+      if (!finalResumeText.trim() && !shouldAnalyzeUploadedFile) {
         setScanError('Please add your resume to continue');
         setIsScanning(false);
         return;
       }
 
-      const result = await analyzeResume(finalResumeText, jobDescription);
+      const result = await analyzeResume({
+        resumeText: finalResumeText,
+        resumeFile: shouldAnalyzeUploadedFile ? file : null,
+        jobDescription,
+      });
       setScanResult(result);
       setShowResults(true);
       
       // Save to Supabase
-      await saveScanToHistory(result, finalResumeText);
+      await saveScanToHistory(result, finalResumeText.trim() || file?.name || 'Uploaded resume');
     } catch (error: any) {
       setScanError(error.message || 'An error occurred during scanning. Please try again.');
     } finally {
