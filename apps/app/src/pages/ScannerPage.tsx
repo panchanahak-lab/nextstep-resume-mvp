@@ -71,35 +71,75 @@ const applySuggestedChanges = (resume: string, changes: SuggestedChange[]) => {
   }, resume);
 };
 
-const getHighlightedParts = (originalResume: string, revisedResume: string, changes: SuggestedChange[]) => {
+type DiffPart = { text: string; type: 'normal' | 'removed' | 'added' };
+
+/**
+ * Build an inline "tracked changes" view of the resume: each suggested edit keeps
+ * the original snippet (rendered in yellow) immediately followed by the suggested
+ * replacement (rendered in green) so the user can compare them in context.
+ */
+const buildDiffParts = (resume: string, changes: SuggestedChange[]): DiffPart[] => {
   const matches = changes
     .map((change) => {
-      const index = revisedResume.indexOf(change.replacement);
+      if (!change.original || !change.replacement) return null;
+      const index = resume.indexOf(change.original);
       return index >= 0
-        ? { index, text: change.replacement, original: change.original }
+        ? { index, original: change.original, replacement: change.replacement }
         : null;
     })
-    .filter((match): match is { index: number; text: string; original: string } => Boolean(match))
+    .filter((match): match is { index: number; original: string; replacement: string } => Boolean(match))
     .sort((a, b) => a.index - b.index);
 
-  const parts: Array<{ text: string; changed: boolean; original?: string }> = [];
+  const parts: DiffPart[] = [];
   let cursor = 0;
 
   matches.forEach((match) => {
     if (match.index < cursor) return;
     if (match.index > cursor) {
-      parts.push({ text: revisedResume.slice(cursor, match.index), changed: false });
+      parts.push({ text: resume.slice(cursor, match.index), type: 'normal' });
     }
-    parts.push({ text: match.text, changed: true, original: match.original });
-    cursor = match.index + match.text.length;
+    parts.push({ text: match.original, type: 'removed' });
+    parts.push({ text: match.replacement, type: 'added' });
+    cursor = match.index + match.original.length;
   });
 
-  if (cursor < revisedResume.length) {
-    parts.push({ text: revisedResume.slice(cursor), changed: false });
+  if (cursor < resume.length) {
+    parts.push({ text: resume.slice(cursor), type: 'normal' });
   }
 
-  return parts.length > 0 ? parts : [{ text: originalResume, changed: false }];
+  return parts.length > 0 ? parts : [{ text: resume, type: 'normal' }];
 };
+
+const RESUME_SECTION_HEADINGS = [
+  'CAREER OBJECTIVE', 'PROFESSIONAL SUMMARY', 'SUMMARY', 'PROFESSIONAL EXPERIENCE', 'WORK EXPERIENCE',
+  'EXPERIENCE', 'EDUCATIONAL QUALIFICATION', 'EDUCATION', 'TECHNICAL SKILLS', 'SKILLS AND STRENGTHS',
+  'KEY SKILLS', 'CORE COMPETENCIES', 'SKILLS', 'PROJECTS', 'CERTIFICATIONS', 'ACHIEVEMENTS',
+  'AWARDS', 'HOBBIES', 'INTERESTS', 'LANGUAGES', 'PERSONAL DETAILS', 'DECLARATION', 'REFERENCES',
+];
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Bold known CV section headings so the printed/downloaded resume looks structured. */
+const applyHeadingStyling = (html: string) => {
+  const sorted = [...RESUME_SECTION_HEADINGS].sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(`(${sorted.map((heading) => escapeRegExp(escapeHtml(heading))).join('|')})`, 'g');
+  return html.replace(pattern, '<span class="cv-heading">$1</span>');
+};
+
+const diffPartsToHtml = (parts: DiffPart[]) => {
+  const body = parts
+    .map((part) => {
+      const safe = escapeHtml(part.text).replace(/\n/g, '<br />');
+      if (part.type === 'removed') return `<span class="cv-removed">${safe}</span>`;
+      if (part.type === 'added') return `<span class="cv-added">${safe}</span>`;
+      return safe;
+    })
+    .join('');
+  return applyHeadingStyling(body);
+};
+
+const resumeTextToHtml = (resume: string) =>
+  applyHeadingStyling(escapeHtml(resume).replace(/\n/g, '<br />'));
 
 const ScannerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
@@ -183,14 +223,104 @@ const ScannerPage: React.FC = () => {
     }
   };
 
-  const openRevisedResumePreview = (revisedResume: string, changes: SuggestedChange[]) => {
-    const highlightedHtml = changes.reduce((html, change) => {
-      if (!change.replacement) return html;
-      return html.replace(
-        escapeHtml(change.replacement),
-        `<mark>${escapeHtml(change.replacement)}</mark>`,
-      );
-    }, escapeHtml(revisedResume));
+  const openRevisedResumePreview = (
+    originalResume: string,
+    changes: SuggestedChange[],
+    improvedSummary?: string,
+    keywords: string[] = [],
+  ) => {
+    const diffParts = buildDiffParts(originalResume, changes);
+    const reviewBodyHtml = diffPartsToHtml(diffParts);
+
+    // The downloaded/printed final copy has every suggestion applied (no yellow markers).
+    const finalResume = applySuggestedChanges(originalResume, changes);
+    const finalBodyHtml = resumeTextToHtml(finalResume);
+
+    const summaryBlock = improvedSummary
+      ? `<section class="cv-block cv-summary">
+          <h2>AI-Optimized Professional Summary</h2>
+          <p>${escapeHtml(improvedSummary)}</p>
+        </section>`
+      : '';
+
+    const keywordsBlock = keywords.length > 0
+      ? `<section class="cv-block cv-keywords">
+          <h2>Suggested Keywords to Include</h2>
+          <div class="chips">${keywords.map((keyword) => `<span class="chip">${escapeHtml(keyword)}</span>`).join('')}</div>
+        </section>`
+      : '';
+
+    const sharedStyles = `
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #eef2f7;
+        color: #1f2937;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+        line-height: 1.5;
+      }
+      .sheet {
+        width: min(8.5in, calc(100vw - 32px));
+        margin: 24px auto;
+        background: #ffffff;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+        padding: 0.75in;
+        font-size: 13px;
+      }
+      .cv-body { white-space: pre-wrap; word-wrap: break-word; }
+      .cv-heading {
+        display: inline-block;
+        margin-top: 14px;
+        font-weight: 700;
+        font-size: 13.5px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #1d4ed8;
+        border-bottom: 1px solid #c7d2fe;
+        padding-bottom: 2px;
+      }
+      .cv-block { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed #e2e8f0; }
+      .cv-block h2 {
+        margin: 0 0 8px;
+        font-size: 13.5px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #1d4ed8;
+      }
+      .cv-summary p { margin: 0; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chip {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+    `;
+
+    // Standalone Word-openable document the user can keep on disk (clean, finalized resume).
+    const downloadDoc = `<!doctype html>
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <title>NextStep Revised Resume</title>
+          <style>${sharedStyles}
+            body { background: #ffffff; }
+            .sheet { box-shadow: none; margin: 0 auto; width: auto; padding: 0; }
+            @page { size: A4; margin: 14mm; }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">
+            ${summaryBlock}
+            <div class="cv-body">${finalBodyHtml}</div>
+            ${keywordsBlock}
+          </main>
+        </body>
+      </html>`;
 
     const previewHtml = `
       <!doctype html>
@@ -200,15 +330,7 @@ const ScannerPage: React.FC = () => {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>NextStep Revised Resume</title>
           <style>
-            :root { color-scheme: light; }
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              background: #eef2f7;
-              color: #111827;
-              font-family: Arial, sans-serif;
-              line-height: 1.45;
-            }
+            ${sharedStyles}
             .toolbar {
               position: sticky;
               top: 0;
@@ -220,44 +342,55 @@ const ScannerPage: React.FC = () => {
               padding: 14px 24px;
               background: #ffffff;
               border-bottom: 1px solid #dbe3ef;
+              flex-wrap: wrap;
             }
             .toolbar h1 { margin: 0; font-size: 18px; }
             .toolbar p { margin: 3px 0 0; color: #526174; font-size: 13px; }
-            .print-button {
+            .toolbar .actions { display: flex; gap: 10px; }
+            .btn {
               border: 0;
               border-radius: 8px;
-              background: #2563eb;
-              color: #ffffff;
               cursor: pointer;
               font-weight: 700;
               padding: 10px 16px;
+              font-size: 13px;
             }
-            .sheet {
-              width: min(8.5in, calc(100vw - 32px));
-              min-height: 11in;
-              margin: 24px auto;
-              background: #ffffff;
-              box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-              padding: 0.7in;
-            }
-            pre {
-              margin: 0;
-              white-space: pre-wrap;
-              font: inherit;
+            .btn-primary { background: #2563eb; color: #ffffff; }
+            .btn-secondary { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+            .legend {
+              display: flex;
+              gap: 18px;
+              flex-wrap: wrap;
+              align-items: center;
+              max-width: min(8.5in, calc(100vw - 32px));
+              margin: 18px auto -6px;
               font-size: 12px;
+              color: #475569;
             }
-            mark { background: #dcfce7; color: #166534; padding: 1px 3px; border-radius: 3px; }
+            .legend span { display: inline-flex; align-items: center; gap: 6px; }
+            .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+            .swatch-current { background: #fef08a; border: 1px solid #fde047; }
+            .swatch-suggested { background: #bbf7d0; border: 1px solid #86efac; }
+            .cv-removed {
+              background: #fef08a;
+              color: #854d0e;
+              text-decoration: line-through;
+              padding: 0 2px;
+              border-radius: 3px;
+            }
+            .cv-added {
+              background: #bbf7d0;
+              color: #166534;
+              padding: 0 2px;
+              border-radius: 3px;
+            }
             @page { size: A4; margin: 14mm; }
             @media print {
               body { background: #ffffff; }
-              .toolbar { display: none; }
-              .sheet {
-                width: auto;
-                min-height: auto;
-                margin: 0;
-                padding: 0;
-                box-shadow: none;
-              }
+              .toolbar, .legend { display: none; }
+              .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; }
+              .cv-removed { display: none; }
+              .cv-added { background: transparent; color: inherit; }
             }
           </style>
         </head>
@@ -265,13 +398,36 @@ const ScannerPage: React.FC = () => {
           <header class="toolbar">
             <div>
               <h1>Revised Resume Draft</h1>
-              <p>Highlighted words are AI-suggested changes. Review before printing.</p>
+              <p>Yellow = current text, Green = AI-suggested text. Review, then download or print.</p>
             </div>
-            <button class="print-button" type="button" onclick="window.print()">Print</button>
+            <div class="actions">
+              <button class="btn btn-secondary" type="button" onclick="downloadResume()">Download CV</button>
+              <button class="btn btn-primary" type="button" onclick="window.print()">Print / Save as PDF</button>
+            </div>
           </header>
+          <div class="legend">
+            <span><span class="swatch swatch-current"></span> Current text</span>
+            <span><span class="swatch swatch-suggested"></span> Suggested text</span>
+          </div>
           <main class="sheet">
-            <pre>${highlightedHtml}</pre>
+            ${summaryBlock}
+            <div class="cv-body">${reviewBodyHtml}</div>
+            ${keywordsBlock}
           </main>
+          <script>
+            var DOWNLOAD_HTML = ${JSON.stringify(downloadDoc)};
+            function downloadResume() {
+              var blob = new Blob(['\ufeff', DOWNLOAD_HTML], { type: 'application/msword' });
+              var url = URL.createObjectURL(blob);
+              var link = document.createElement('a');
+              link.href = url;
+              link.download = 'NextStep-Revised-Resume.doc';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+            }
+          </script>
         </body>
       </html>
     `;
@@ -400,11 +556,9 @@ const ScannerPage: React.FC = () => {
   };
 
   const suggestedChanges = scanResult ? buildSuggestedChanges(scanResult.issues) : [];
-  const revisedResumeText = scannedResumeText && suggestedChanges.length > 0
-    ? applySuggestedChanges(scannedResumeText, suggestedChanges)
-    : scannedResumeText;
-  const highlightedResumeParts = scannedResumeText && revisedResumeText
-    ? getHighlightedParts(scannedResumeText, revisedResumeText, suggestedChanges)
+  const canPreviewRevisedResume = Boolean(scannedResumeText && suggestedChanges.length > 0);
+  const diffParts = canPreviewRevisedResume
+    ? buildDiffParts(scannedResumeText, suggestedChanges)
     : [];
 
   return (
@@ -748,10 +902,15 @@ const ScannerPage: React.FC = () => {
                     Review the exact text the AI found, then use the revised draft below to print a highlighted copy.
                   </p>
                 </div>
-                {revisedResumeText && suggestedChanges.length > 0 && (
+                {canPreviewRevisedResume && (
                   <Button
                     variant="secondary"
-                    onClick={() => openRevisedResumePreview(revisedResumeText, suggestedChanges)}
+                    onClick={() => openRevisedResumePreview(
+                      scannedResumeText,
+                      suggestedChanges,
+                      scanResult.improvedSummary,
+                      scanResult.missingKeywords,
+                    )}
                     className="inline-flex items-center justify-center gap-2"
                   >
                     <Printer className="h-4 w-4" />
@@ -803,28 +962,50 @@ const ScannerPage: React.FC = () => {
                 </div>
               )}
 
-              {scannedResumeText && suggestedChanges.length > 0 && (
+              {canPreviewRevisedResume && (
                 <div className="mt-6">
-                  <h4 className="mb-2 text-sm font-semibold text-neutral-900 dark:text-white">Highlighted revised draft</h4>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">Your CV with tracked changes</h4>
+                    <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-sm border border-yellow-300 bg-yellow-200" />
+                        Current text
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-sm border border-green-300 bg-green-200" />
+                        Suggested text
+                      </span>
+                    </div>
+                  </div>
                   <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-950">
                     <pre className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
-                      {highlightedResumeParts.map((part, index) => (
-                        part.changed ? (
-                          <mark
-                            key={`${part.text}-${index}`}
-                            className="rounded bg-green-100 px-1 text-green-900 dark:bg-green-900/50 dark:text-green-100"
-                            title={part.original ? `Original: ${part.original}` : undefined}
-                          >
-                            {part.text}
-                          </mark>
-                        ) : (
-                          <React.Fragment key={`${part.text}-${index}`}>{part.text}</React.Fragment>
-                        )
-                      ))}
+                      {diffParts.map((part, index) => {
+                        if (part.type === 'removed') {
+                          return (
+                            <mark
+                              key={`removed-${index}`}
+                              className="rounded bg-yellow-200 px-1 text-yellow-900 line-through decoration-yellow-700/60 dark:bg-yellow-500/30 dark:text-yellow-100"
+                            >
+                              {part.text}
+                            </mark>
+                          );
+                        }
+                        if (part.type === 'added') {
+                          return (
+                            <mark
+                              key={`added-${index}`}
+                              className="rounded bg-green-200 px-1 text-green-900 dark:bg-green-500/30 dark:text-green-100"
+                            >
+                              {part.text}
+                            </mark>
+                          );
+                        }
+                        return <React.Fragment key={`normal-${index}`}>{part.text}</React.Fragment>;
+                      })}
                     </pre>
                   </div>
                   <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                    Highlighted words are AI-suggested replacements. Review before using the draft.
+                    Yellow shows your current wording and green shows the AI-suggested replacement. Open the full draft to download or print.
                   </p>
                 </div>
               )}

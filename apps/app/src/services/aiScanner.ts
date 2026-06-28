@@ -106,10 +106,17 @@ const estimateProjectedScore = (currentScore: number, result: EdgeAtsResult, has
   const issueCount = Array.isArray(result.issues) ? result.issues.length : 0;
   const missingKeywordCount = hasJD && Array.isArray(result.missingKeywords) ? result.missingKeywords.length : 0;
   const suggestionCount = Array.isArray(result.optimizationPlan) ? result.optimizationPlan.length : 0;
-  const improvementPotential = Math.min(35, (issueCount * 4) + (missingKeywordCount * 3) + (suggestionCount * 2));
-  const floorBoost = currentScore < 50 ? 12 : currentScore < 70 ? 8 : 5;
+  const hasActionableChanges = issueCount > 0 || missingKeywordCount > 0 || suggestionCount > 0;
 
-  return clampScore(currentScore + floorBoost + improvementPotential);
+  const improvementPotential = Math.min(45, (issueCount * 5) + (missingKeywordCount * 4) + (suggestionCount * 3));
+  const floorBoost = currentScore < 50 ? 20 : currentScore < 70 ? 14 : 8;
+  const projected = currentScore + floorBoost + improvementPotential;
+
+  // Applying every suggested keyword and CV edit should make the resume strongly
+  // competitive, so guarantee a clearly above-80 projection when fixes are available.
+  const competitiveFloor = hasActionableChanges ? 85 : projected;
+
+  return clampScore(Math.min(98, Math.max(projected, competitiveFloor)));
 };
 
 /**
