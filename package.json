@@ -1,6 +1,7 @@
 {
   "name": "nextstep-resume-mvp",
   "private": true,
+  "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"
