@@ -44,6 +44,40 @@ interface SuggestedChange {
   suggestion: string;
 }
 
+const SCANNER_WORKSPACE_VERSION = 1;
+const SCANNER_WORKSPACE_KEY_PREFIX = 'nextstep:scanner-workspace:';
+
+interface ScannerWorkspaceSnapshot {
+  version: number;
+  resumeText: string;
+  jobDescription: string;
+  jobRole: string;
+  jobUrl: string;
+  showResults: boolean;
+  scanResult: ATSScanResult | null;
+  scannedResumeText: string;
+  resumeView: 'original' | 'revised';
+  applyChanges: boolean;
+  includeKeywords: boolean;
+  saveSuccess: boolean;
+  fileName?: string;
+  fileType?: string;
+  wasScanning?: boolean;
+  savedAt: string;
+}
+
+const getScannerWorkspaceKey = (ownerId: string) => `${SCANNER_WORKSPACE_KEY_PREFIX}${ownerId}`;
+
+const hasScannerWorkspaceContent = (snapshot: ScannerWorkspaceSnapshot) => Boolean(
+  snapshot.resumeText.trim()
+  || snapshot.jobDescription.trim()
+  || snapshot.jobRole.trim()
+  || snapshot.jobUrl.trim()
+  || snapshot.scannedResumeText.trim()
+  || snapshot.scanResult
+  || snapshot.fileName
+);
+
 const getScanStages = (hasTargetRole: boolean) => {
   const stages = [
     'Uploading your resume securely...',
@@ -469,6 +503,131 @@ const ScannerPage: React.FC = () => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [applyChanges, setApplyChanges] = useState(true);
   const [includeKeywords, setIncludeKeywords] = useState(true);
+  const [workspaceOwnerId, setWorkspaceOwnerId] = useState('guest');
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const [workspaceRestoredAt, setWorkspaceRestoredAt] = useState('');
+  const [restoredFileName, setRestoredFileName] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const restoreWorkspace = async () => {
+      let ownerId = 'guest';
+
+      try {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.id) ownerId = user.id;
+        }
+      } catch (error) {
+        console.warn('Could not identify scanner workspace owner', error);
+      }
+
+      if (!isMounted || typeof window === 'undefined') return;
+
+      setWorkspaceOwnerId(ownerId);
+
+      const workspaceKey = getScannerWorkspaceKey(ownerId);
+      const savedWorkspace = window.localStorage.getItem(workspaceKey);
+
+      if (savedWorkspace) {
+        try {
+          const snapshot = JSON.parse(savedWorkspace) as ScannerWorkspaceSnapshot;
+
+          if (snapshot.version !== SCANNER_WORKSPACE_VERSION || !hasScannerWorkspaceContent(snapshot)) {
+            window.localStorage.removeItem(workspaceKey);
+          } else {
+            setResumeText(snapshot.resumeText || '');
+            setJobDescription(snapshot.jobDescription || '');
+            setJobRole(snapshot.jobRole || '');
+            setJobUrl(snapshot.jobUrl || '');
+            setScanResult(snapshot.scanResult || null);
+            setScannedResumeText(snapshot.scannedResumeText || '');
+            setResumeView(snapshot.resumeView || 'revised');
+            setShowResults(Boolean(snapshot.showResults && snapshot.scanResult));
+            setApplyChanges(snapshot.applyChanges ?? true);
+            setIncludeKeywords(snapshot.includeKeywords ?? true);
+            setSaveSuccess(Boolean(snapshot.saveSuccess));
+            setRestoredFileName(snapshot.fileName || '');
+            setWorkspaceRestoredAt(snapshot.savedAt || new Date().toISOString());
+
+            if (snapshot.wasScanning) {
+              setParseWarning('Your scan was interrupted by a refresh. Your inputs were restored, so you can start the scan again.');
+            }
+          }
+        } catch (error) {
+          console.warn('Could not restore scanner workspace', error);
+          window.localStorage.removeItem(workspaceKey);
+        }
+      }
+
+      setWorkspaceLoaded(true);
+    };
+
+    void restoreWorkspace();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLoaded || typeof window === 'undefined') return undefined;
+
+    const saveTimer = window.setTimeout(() => {
+      const snapshot: ScannerWorkspaceSnapshot = {
+        version: SCANNER_WORKSPACE_VERSION,
+        resumeText,
+        jobDescription,
+        jobRole,
+        jobUrl,
+        showResults,
+        scanResult,
+        scannedResumeText,
+        resumeView,
+        applyChanges,
+        includeKeywords,
+        saveSuccess,
+        fileName: file?.name || restoredFileName || undefined,
+        fileType: file?.type || undefined,
+        wasScanning: isScanning,
+        savedAt: new Date().toISOString(),
+      };
+
+      const workspaceKey = getScannerWorkspaceKey(workspaceOwnerId);
+
+      if (!hasScannerWorkspaceContent(snapshot)) {
+        window.localStorage.removeItem(workspaceKey);
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(workspaceKey, JSON.stringify(snapshot));
+      } catch (error) {
+        console.warn('Could not save scanner workspace', error);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(saveTimer);
+  }, [
+    workspaceLoaded,
+    workspaceOwnerId,
+    resumeText,
+    jobDescription,
+    jobRole,
+    jobUrl,
+    showResults,
+    scanResult,
+    scannedResumeText,
+    resumeView,
+    applyChanges,
+    includeKeywords,
+    saveSuccess,
+    file,
+    restoredFileName,
+    isScanning,
+  ]);
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -584,6 +743,8 @@ const ScannerPage: React.FC = () => {
       setFileError('File size exceeds 5MB. Please upload a smaller file.');
       return;
     }
+    setRestoredFileName('');
+    setParseWarning('');
     setFile(selectedFile);
   };
 
@@ -598,6 +759,42 @@ const ScannerPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       handleFileProcess(e.target.files[0]);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    setRestoredFileName('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const clearScannerWorkspace = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(getScannerWorkspaceKey(workspaceOwnerId));
+    }
+
+    setResumeText('');
+    setJobDescription('');
+    setJobRole('');
+    setJobUrl('');
+    setUrlError('');
+    setUrlSuccess('');
+    setFile(null);
+    setRestoredFileName('');
+    setFileError('');
+    setParseWarning('');
+    setScanError('');
+    setScanResult(null);
+    setScannedResumeText('');
+    setShowResults(false);
+    setSaveSuccess(false);
+    setRetrySaving(false);
+    setWorkspaceRestoredAt('');
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -1075,6 +1272,7 @@ const ScannerPage: React.FC = () => {
   const diffParts = canPreviewRevisedResume
     ? buildDiffParts(scannedResumeText, suggestedChanges)
     : [];
+  const restoredAtLabel = workspaceRestoredAt ? new Date(workspaceRestoredAt).toLocaleString() : '';
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
@@ -1100,6 +1298,28 @@ const ScannerPage: React.FC = () => {
           <Clock className="w-4 h-4" /> History
         </button>
       </div>
+
+      {activeTab === 'scan' && workspaceRestoredAt && (
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary-200 bg-primary-50 p-4 text-primary-900 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-100 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-3">
+            <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary-600 dark:text-primary-300" />
+            <div>
+              <h3 className="font-semibold">Your previous scanner work was restored.</h3>
+              <p className="mt-1 text-sm text-primary-800 dark:text-primary-200">
+                Resume text, job details, and the latest analysis are back{restoredAtLabel ? ` from ${restoredAtLabel}` : ''}.
+                {restoredFileName ? ` The uploaded file "${restoredFileName}" cannot be restored by the browser, but any extracted text and results were kept.` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={clearScannerWorkspace}
+            className="inline-flex items-center justify-center rounded-lg border border-primary-300 px-3 py-2 text-sm font-semibold text-primary-700 transition-colors hover:bg-primary-100 dark:border-primary-700 dark:text-primary-100 dark:hover:bg-primary-900"
+          >
+            Start fresh
+          </button>
+        </div>
+      )}
 
       {activeTab === 'history' ? (
         <div className="max-w-4xl mx-auto">
@@ -1167,7 +1387,7 @@ const ScannerPage: React.FC = () => {
                       <CheckCircle2 className="w-4 h-4" /> Uploaded successfully
                     </p>
                     <button 
-                      onClick={() => setFile(null)}
+                      onClick={handleRemoveFile}
                       className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
                     >
                       <X className="w-4 h-4" /> Remove file
