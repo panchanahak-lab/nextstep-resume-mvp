@@ -4,10 +4,12 @@ import { ThemeToggle, getSupabaseClient } from '@nextstep/shared';
 
 interface TopbarProps {
   onMenuClick: () => void;
+  onDesktopMenuClick?: () => void;
+  desktopSidebarOpen?: boolean;
   title: string;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
+const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onDesktopMenuClick, desktopSidebarOpen = true, title }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [initials, setInitials] = useState('U');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -96,14 +98,36 @@ const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
           <button
             onClick={onMenuClick}
             className="lg:hidden p-2 rounded-md app-muted hover:bg-white/10 transition-colors"
-            aria-label="Toggle sidebar"
+            aria-label="Toggle sidebar mobile"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
             </svg>
           </button>
+          
+          <button
+            onClick={onDesktopMenuClick}
+            className="hidden lg:block p-2 rounded-md app-muted hover:bg-white/10 transition-colors"
+            aria-label="Toggle sidebar desktop"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {desktopSidebarOpen ? (
+                <>
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="3" x2="9" y2="21"></line>
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </>
+              )}
+            </svg>
+          </button>
+          
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">NextStep</p>
             <h1 className="text-lg font-bold text-neutral-950 dark:text-white">{title}</h1>

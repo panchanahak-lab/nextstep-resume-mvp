@@ -15,6 +15,7 @@ const pageTitles: Record<string, string> = {
 
 const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,10 +48,16 @@ const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ children }) 
 
   return (
     <div className="app-shell">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="lg:pl-64">
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        desktopIsOpen={desktopSidebarOpen}
+        onClose={() => setSidebarOpen(false)} 
+      />
+      <div className={`transition-all duration-300 ${desktopSidebarOpen ? 'lg:pl-64' : 'lg:pl-0'}`}>
         <Topbar
           onMenuClick={() => setSidebarOpen(true)}
+          onDesktopMenuClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+          desktopSidebarOpen={desktopSidebarOpen}
           title={pageTitle}
         />
         <main className="min-h-[calc(100vh-4rem)] overflow-y-auto relative px-4 py-5 sm:px-6 lg:px-8 lg:py-8">

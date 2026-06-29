@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen: boolean;
+  desktopIsOpen?: boolean;
   onClose: () => void;
 }
 
@@ -73,7 +74,7 @@ const navItems = [
   },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, desktopIsOpen = true, onClose }) => {
   const sidebarContent = (
     <div className="app-sidebar text-white w-64 min-h-screen flex flex-col">
       {/* Logo */}
@@ -156,7 +157,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block">
+      <div 
+        className={`hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block transform transition-transform duration-300 ease-in-out ${
+          desktopIsOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         {sidebarContent}
       </div>
     </>
