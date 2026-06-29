@@ -3,7 +3,7 @@ import { generateGeminiContent } from "../_shared/gemini.ts";
 import { checkRateLimit, getServiceClient, requireUser } from "../_shared/supabase.ts";
 
 const ATS_MODEL = "gemini-2.5-flash";
-const SCORING_VERSION = "ats_v2";
+const SCORING_VERSION = "ats_v3";
 
 // ---------- helpers ----------
 
@@ -62,15 +62,18 @@ function splitLines(text: string): string[] {
   return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
 
-function parseStructuredResume(text: string, aiResult: Record<string, any>) {
+function parseStructuredResume(text: string, aiResult: Record<string, any>, isRevised = false) {
   const lines = splitLines(text);
   const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
   const phone = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.trim() || "";
-  const name = lines.find((line) => !line.includes("@") && !/\d{4,}/.test(line) && line.length <= 60) || "Revised Resume";
-  const skills = uniqStrings([
+  let name = lines.find((line) => !line.includes("@") && !/\d{4,}/.test(line) && line.length <= 60) || "";
+  if (name.toLowerCase() === "revised resume") name = ""; // Ignore accidental "Revised Resume" name
+
+  const skills = isRevised ? uniqStrings([
     ...(Array.isArray(aiResult.matched_skills) ? aiResult.matched_skills : []),
     ...(Array.isArray(aiResult.matched_keywords) ? aiResult.matched_keywords : []),
-  ]).slice(0, 16);
+  ]).slice(0, 16) : [];
+
   const bullets = lines
     .filter((line) => /^[-*•]|\b(managed|led|created|designed|developed|implemented|improved|coordinated|handled)\b/i.test(line))
     .map((line) => line.replace(/^[-*•]\s*/, ""))
@@ -79,7 +82,7 @@ function parseStructuredResume(text: string, aiResult: Record<string, any>) {
   return {
     contact: { name, email, phone, location: "" },
     headline: "",
-    summary: typeof aiResult.improved_summary_suggestion === "string" ? aiResult.improved_summary_suggestion : "",
+    summary: isRevised && typeof aiResult.improved_summary_suggestion === "string" ? aiResult.improved_summary_suggestion : "",
     skills,
     experience: bullets.length > 0 ? [{
       id: crypto.randomUUID(),
@@ -130,8 +133,8 @@ function applyTextPatches(text: string, patches: Array<Record<string, any>>) {
 
 function buildRevisedResumeData(originalText: string, aiResult: Record<string, any>, safePatches: Array<Record<string, any>>, insertedKeywords: string[]) {
   const revisedText = applyTextPatches(originalText, safePatches);
-  const parsed = parseStructuredResume(originalText, aiResult);
-  const revised = parseStructuredResume(revisedText, aiResult);
+  const parsed = parseStructuredResume(originalText, aiResult, false);
+  const revised = parseStructuredResume(revisedText, aiResult, true);
   revised.summary = typeof aiResult.improved_summary_suggestion === "string" && aiResult.improved_summary_suggestion.trim()
     ? aiResult.improved_summary_suggestion.trim()
     : parsed.summary;
