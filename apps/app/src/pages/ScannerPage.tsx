@@ -1304,7 +1304,7 @@ const ScannerPage: React.FC = () => {
             <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold flex items-center justify-center gap-2" onClick={handleScan} disabled={isScanning}>
               {isScanning ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" /> We are optimizing...
+                  <Loader2 className="w-5 h-5 animate-spin" /> Analyzing your CV...
                 </>
               ) : (
                 'Scan My Resume'
