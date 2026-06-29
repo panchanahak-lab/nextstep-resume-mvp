@@ -437,6 +437,7 @@ const ScannerPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Download Revised CV options
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [applyChanges, setApplyChanges] = useState(true);
   const [includeKeywords, setIncludeKeywords] = useState(true);
 
@@ -910,8 +911,14 @@ const ScannerPage: React.FC = () => {
     }
   };
 
-  /** Download revised CV directly (no popup). */
+  /** Open the download format selection modal. */
   const downloadRevisedCV = () => {
+    if (!scanResult || (!scannedResumeText && !scanResult.revisedResumeData)) return;
+    setShowDownloadModal(true);
+  };
+
+  /** Execute the download in the selected format. */
+  const executeDownload = (format: 'word' | 'pdf') => {
     if (!scanResult || (!scannedResumeText && !scanResult.revisedResumeData)) return;
 
     // Determine which changes to apply
@@ -970,15 +977,30 @@ const ScannerPage: React.FC = () => {
         </body>
       </html>`;
 
-    const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'NextStep-Revised-Resume.doc';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    if (format === 'word') {
+      const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'NextStep-Revised-Resume.doc';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } else if (format === 'pdf') {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(docHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      } else {
+        alert('Please allow popups to download the PDF.');
+      }
+    }
+    setShowDownloadModal(false);
   };
 
   const suggestedChanges = scanResult ? buildSuggestedChanges(scanResult.issues) : [];
@@ -1979,6 +2001,44 @@ const ScannerPage: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-5 border-b border-neutral-200 dark:border-neutral-800">
+              <h3 className="text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <Download className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                Download Revised CV
+              </h3>
+              <button onClick={() => setShowDownloadModal(false)} className="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-6 bg-neutral-50 dark:bg-neutral-950/50">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Document Preview</p>
+              </div>
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm overflow-hidden">
+                 <StructuredResumeViewer resume={scanResult?.revisedResumeData} fallbackText={scannedResumeText || ''} />
+              </div>
+            </div>
+            
+            <div className="p-5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 font-medium">Choose your preferred download format:</p>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setShowDownloadModal(false)}>Cancel</Button>
+                <Button variant="primary" onClick={() => executeDownload('word')} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 border-transparent text-white">
+                   <FileText className="w-4 h-4" /> MS Word
+                </Button>
+                <Button variant="primary" onClick={() => executeDownload('pdf')} className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 border-transparent text-white">
+                   <FileText className="w-4 h-4" /> PDF
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
