@@ -323,7 +323,7 @@ const ScannerPage: React.FC = () => {
     if (!isScanning) return undefined;
     setScanStageIndex(0);
     const timer = window.setInterval(() => {
-      setScanStageIndex((current) => Math.min(scanStages.length - 2, current + 1));
+      setScanStageIndex((current) => Math.min(6, current + 1));
     }, 1400);
     return () => window.clearInterval(timer);
   }, [isScanning]);
