@@ -3,6 +3,7 @@ ALTER TABLE public.ats_scans
   ADD COLUMN IF NOT EXISTS scoring_version text NOT NULL DEFAULT 'ats_v1',
   ADD COLUMN IF NOT EXISTS scan_hash text,
   ADD COLUMN IF NOT EXISTS projected_score integer,
+  ADD COLUMN IF NOT EXISTS issues jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS parsed_resume_data jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS revised_resume_data jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS patches jsonb NOT NULL DEFAULT '[]'::jsonb,
