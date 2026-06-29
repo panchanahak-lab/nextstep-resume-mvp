@@ -44,26 +44,36 @@ interface SuggestedChange {
   suggestion: string;
 }
 
-const scanStages = [
-  'Uploading your resume securely...',
-  'Reading your resume sections...',
-  'Parsing contact, education, experience, skills, and projects...',
-  'Checking ATS readability...',
-  'Matching keywords with your target role...',
-  'Preparing improvement suggestions...',
-  'Generating revised ATS-friendly CV...',
-  'Finalizing report...',
-];
+const getScanStages = (hasTargetRole: boolean) => {
+  const stages = [
+    'Uploading your resume securely...',
+    'Reading your resume sections...',
+    'Parsing contact, education, experience, skills, and projects...',
+    'Checking ATS readability...',
+  ];
+  if (hasTargetRole) {
+    stages.push('Matching keywords with your target role...');
+  } else {
+    stages.push('Identifying general industry keywords...');
+  }
+  stages.push(
+    'Preparing improvement suggestions...',
+    'Generating revised ATS-friendly CV...',
+    'Finalizing report...'
+  );
+  return stages;
+};
 
-const ResumeScanProgress: React.FC<{ stageIndex: number }> = ({ stageIndex }) => {
-  const progress = Math.min(92, 10 + stageIndex * 11);
+const ResumeScanProgress: React.FC<{ stageIndex: number; hasTargetRole: boolean }> = ({ stageIndex, hasTargetRole }) => {
+  const stages = getScanStages(hasTargetRole);
+  const progress = Math.min(92, 10 + stageIndex * (90 / stages.length));
 
   return (
     <Card className="mt-5 max-w-3xl p-5" aria-busy="true">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-neutral-900 dark:text-white">
-            {scanStages[Math.min(stageIndex, scanStages.length - 1)]}
+            {stages[Math.min(stageIndex, stages.length - 1)]}
           </p>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
             NextStep is analyzing the resume and preparing a revised ATS-friendly draft.
@@ -81,7 +91,7 @@ const ResumeScanProgress: React.FC<{ stageIndex: number }> = ({ stageIndex }) =>
         <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${progress}%` }} />
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {scanStages.map((stage, index) => (
+        {stages.map((stage, index) => (
           <div
             key={stage}
             className={`rounded-lg border px-3 py-2 text-xs ${
@@ -1085,7 +1095,7 @@ const ScannerPage: React.FC = () => {
                 'Scan My Resume'
               )}
             </Button>
-            {isScanning && <ResumeScanProgress stageIndex={scanStageIndex} />}
+            {isScanning && <ResumeScanProgress stageIndex={scanStageIndex} hasTargetRole={!!(jobDescription.trim() || jobRole.trim())} />}
             {scanError && (
               <p className="mt-3 text-sm text-red-600 flex items-center gap-1 font-medium">
                 <AlertCircle className="w-4 h-4" /> {scanError}
