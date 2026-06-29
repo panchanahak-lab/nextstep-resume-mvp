@@ -4,6 +4,7 @@ import Card from '../../../../packages/shared/src/components/Card';
 import Button from '../../../../packages/shared/src/components/Button';
 import StatCard from '../../../../packages/shared/src/components/StatCard';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
+import { isResumeDataEmpty, loadStoredResume } from '../utils/resumeStorage';
 
 interface ActivityItem {
   id: string;
@@ -17,6 +18,7 @@ interface ActivityItem {
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
+    resumes: 0,
     scans: 0,
     interviews: 0
   });
@@ -53,24 +55,54 @@ const DashboardPage: React.FC = () => {
         
         setGreetingInfo({ name: capitalizedName, isFirstLogin: isFirst });
 
-        // Fetch scans
-        const { data: scansData } = await supabase
-          .from('scans')
-          .select('id, mode, score, created_at')
+        // Fetch usage counts from the current production tables.
+        const [
+          { data: scansData, error: scansError },
+          { data: interviewsData, error: interviewsError },
+          { count: resumeDraftCount, error: resumeDraftsError },
+        ] = await Promise.all([
+          supabase
+            .from('ats_scans')
+            .select('id, final_score, confidence_level, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('interviews')
+            .select('id, job_role, score, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('resume_drafts')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id),
+        ]);
+
+        if (scansError) console.error('Failed to fetch ATS scan count', scansError);
+        if (interviewsError) console.error('Failed to fetch interview count', interviewsError);
+        if (resumeDraftsError) console.error('Failed to fetch resume draft count', resumeDraftsError);
+
+        const { count: scanCount } = await supabase
+          .from('ats_scans')
+          .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        // Fetch interviews
-        const { data: interviewsData } = await supabase
+        const { count: interviewCount } = await supabase
           .from('interviews')
-          .select('id, job_role, score, created_at')
+          .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
         const sData = scansData || [];
         const iData = interviewsData || [];
+        const localResume = loadStoredResume(user.id);
+        const hasLocalResume = Boolean(localResume && !isResumeDataEmpty(localResume));
+        const resumesCreated = Math.max(resumeDraftCount || 0, hasLocalResume ? 1 : 0);
 
         setStats({
-          scans: sData.length,
-          interviews: iData.length
+          resumes: resumesCreated,
+          scans: scanCount || sData.length,
+          interviews: interviewCount || iData.length
         });
 
         const combined: ActivityItem[] = [
@@ -78,7 +110,7 @@ const DashboardPage: React.FC = () => {
             id: `scan-${s.id}`,
             type: 'scan' as const,
             title: 'Resume Scan',
-            description: `Scanned for ${s.mode} - Score: ${s.score}`,
+            description: `Score: ${s.final_score}/100${s.confidence_level ? ` - ${s.confidence_level} confidence` : ''}`,
             date: new Date(s.created_at).toLocaleDateString(),
             timestamp: new Date(s.created_at).getTime()
           })),
@@ -160,7 +192,7 @@ const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Resumes Created"
-          value={localStorage.getItem('nextstep_resume') ? 1 : 0}
+          value={loading ? '-' : stats.resumes}
           className="app-card"
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
