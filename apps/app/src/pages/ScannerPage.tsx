@@ -66,7 +66,28 @@ const getScanStages = (hasTargetRole: boolean) => {
 
 const ResumeScanProgress: React.FC<{ stageIndex: number; hasTargetRole: boolean }> = ({ stageIndex, hasTargetRole }) => {
   const stages = getScanStages(hasTargetRole);
-  const progress = Math.min(92, 10 + stageIndex * (90 / stages.length));
+  const targetProgress = Math.min(92, 10 + stageIndex * (90 / stages.length));
+  
+  const [displayedProgress, setDisplayedProgress] = useState(0);
+
+  useEffect(() => {
+    let animationFrameId: number;
+    
+    const animate = () => {
+      setDisplayedProgress((current) => {
+        if (current < targetProgress) {
+          const step = Math.max(0.15, (targetProgress - current) * 0.05);
+          return Math.min(targetProgress, current + step);
+        }
+        return current;
+      });
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    
+    animate();
+    
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [targetProgress]);
 
   return (
     <Card className="mt-5 max-w-3xl p-5" aria-busy="true">
@@ -79,16 +100,21 @@ const ResumeScanProgress: React.FC<{ stageIndex: number; hasTargetRole: boolean 
             NextStep is analyzing the resume and preparing a revised ATS-friendly draft.
           </p>
         </div>
-        <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+            {Math.round(displayedProgress)}%
+          </span>
+          <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+        </div>
       </div>
       <div
         className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={progress}
+        aria-valuenow={Math.round(displayedProgress)}
       >
-        <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-primary-600" style={{ width: `${displayedProgress}%` }} />
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {stages.map((stage, index) => (
