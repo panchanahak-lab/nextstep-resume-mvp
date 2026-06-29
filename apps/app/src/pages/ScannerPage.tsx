@@ -272,6 +272,133 @@ const structuredResumeToText = (resume: ATSScanResult['revisedResumeData'], fall
   return lines.join('\n').trim() || fallback;
 };
 
+const StructuredResumeViewer: React.FC<{ resume?: ATSScanResult['revisedResumeData'], fallbackText?: string }> = ({ resume, fallbackText }) => {
+  if (!resume || Object.keys(resume).length === 0) {
+    return (
+      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200 font-sans">
+        {fallbackText || 'Resume preview is not available.'}
+      </pre>
+    );
+  }
+
+  const contactLine = [resume.contact?.location, resume.contact?.email, resume.contact?.phone].filter(Boolean).join(' | ');
+
+  return (
+    <div className="font-sans text-sm text-neutral-800 dark:text-neutral-200 space-y-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="text-center space-y-1 border-b pb-4 border-neutral-200 dark:border-neutral-700">
+        {(resume.contact?.name || resume.contact?.name) && <h2 className="text-2xl font-bold uppercase tracking-wide text-neutral-900 dark:text-white">{resume.contact?.name}</h2>}
+        {resume.headline && <p className="text-base font-medium text-neutral-600 dark:text-neutral-300">{resume.headline}</p>}
+        {contactLine && <p className="text-neutral-500 dark:text-neutral-400 mt-2">{contactLine}</p>}
+      </div>
+
+      {/* Summary */}
+      {resume.summary && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-2 text-primary-700 dark:text-primary-400">Professional Summary</h3>
+          <p className="leading-relaxed">{resume.summary}</p>
+        </section>
+      )}
+
+      {/* Experience */}
+      {resume.experience && resume.experience.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-3 text-primary-700 dark:text-primary-400">Experience</h3>
+          <div className="space-y-4">
+            {resume.experience.map((item, i) => (
+              <div key={i}>
+                <div className="flex justify-between items-start mb-1 font-semibold text-neutral-900 dark:text-white">
+                  <span>{[item.job_title, item.company].filter(Boolean).join(' | ')}</span>
+                  <span className="text-neutral-500 text-xs shrink-0 font-normal">{[item.start_date, item.end_date].filter(Boolean).join(' - ')}</span>
+                </div>
+                {item.bullets && item.bullets.length > 0 && (
+                  <ul className="list-disc pl-5 space-y-1.5 mt-2">
+                    {item.bullets.map((b, idx) => (
+                      <li key={idx} className="leading-relaxed text-neutral-700 dark:text-neutral-300">{b}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Projects */}
+      {resume.projects && resume.projects.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-3 text-primary-700 dark:text-primary-400">Projects</h3>
+          <div className="space-y-4">
+            {resume.projects.map((project, i) => (
+              <div key={i}>
+                <div className="font-semibold mb-1 text-neutral-900 dark:text-white">{project.name || 'Project'}</div>
+                {project.description && <p className="mb-2 leading-relaxed">{project.description}</p>}
+                {project.tools && project.tools.length > 0 && (
+                  <p className="text-xs text-neutral-500"><span className="font-medium text-neutral-700 dark:text-neutral-300">Tools:</span> {project.tools.join(', ')}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Education */}
+      {resume.education && resume.education.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-3 text-primary-700 dark:text-primary-400">Education</h3>
+          <div className="space-y-3">
+            {resume.education.map((item, i) => (
+              <div key={i} className="flex justify-between items-start">
+                <div>
+                  <span className="font-semibold block text-neutral-900 dark:text-white">{item.degree}</span>
+                  <span className="text-neutral-600 dark:text-neutral-400 text-sm">{item.institute}</span>
+                </div>
+                {item.year && <span className="text-neutral-500 text-xs shrink-0">{item.year}</span>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Skills */}
+      {resume.skills && resume.skills.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-2 text-primary-700 dark:text-primary-400">Skills</h3>
+          <p className="leading-relaxed">{resume.skills.join(' • ')}</p>
+        </section>
+      )}
+
+      {/* Certifications */}
+      {resume.certifications && resume.certifications.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-2 text-primary-700 dark:text-primary-400">Certifications</h3>
+          <ul className="list-disc pl-5 space-y-1">
+            {resume.certifications.map((cert, i) => <li key={i} className="text-neutral-700 dark:text-neutral-300">{cert}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {/* Languages */}
+      {resume.languages && resume.languages.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-2 text-primary-700 dark:text-primary-400">Languages</h3>
+          <p className="leading-relaxed">{resume.languages.join(' • ')}</p>
+        </section>
+      )}
+
+      {/* Additional Information */}
+      {resume.additional_information && resume.additional_information.length > 0 && (
+        <section>
+          <h3 className="text-xs font-bold uppercase tracking-widest mb-2 text-primary-700 dark:text-primary-400">Additional Information</h3>
+          <ul className="list-disc pl-5 space-y-1">
+            {resume.additional_information.map((info, i) => <li key={i} className="text-neutral-700 dark:text-neutral-300 leading-relaxed">{info}</li>)}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+};
+
 const ScannerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scan' | 'history'>('scan');
   const [resumeText, setResumeText] = useState('');
@@ -1686,12 +1813,10 @@ const ScannerPage: React.FC = () => {
                           Revised ATS-Friendly Resume
                         </button>
                       </div>
-                      <div className="max-h-[420px] overflow-auto rounded-b-lg border border-t-0 border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-950">
-                        <pre className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
-                          {resumeView === 'original'
-                            ? structuredResumeToText(scanResult.parsedResumeData, scannedResumeText || 'Original resume preview is not available.')
-                            : structuredResumeToText(scanResult.revisedResumeData, scannedResumeText || 'Revised resume preview is not available.')}
-                        </pre>
+                      <div className="max-h-[500px] overflow-auto rounded-b-lg border border-t-0 border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-950/50 shadow-inner">
+                        {resumeView === 'original'
+                          ? <StructuredResumeViewer resume={scanResult.parsedResumeData} fallbackText={scannedResumeText || 'Original resume preview is not available.'} />
+                          : <StructuredResumeViewer resume={scanResult.revisedResumeData} fallbackText={scannedResumeText || 'Revised resume preview is not available.'} />}
                       </div>
                     </div>
                   )}
