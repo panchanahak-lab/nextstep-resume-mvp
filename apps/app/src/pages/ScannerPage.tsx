@@ -78,6 +78,9 @@ const ResumeScanProgress: React.FC<{ stageIndex: number; hasTargetRole: boolean 
         if (current < targetProgress) {
           const step = Math.max(0.15, (targetProgress - current) * 0.05);
           return Math.min(targetProgress, current + step);
+        } else if (current >= targetProgress && current < 99) {
+          // Slowly creep towards 99% while waiting for the server
+          return Math.min(99, current + 0.015);
         }
         return current;
       });
