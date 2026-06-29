@@ -86,8 +86,8 @@ const ResumeScanProgress: React.FC<{ stageIndex: number }> = ({ stageIndex }) =>
             key={stage}
             className={`rounded-lg border px-3 py-2 text-xs ${
               index <= stageIndex
-                ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900/60 dark:bg-primary-950/30 dark:text-primary-300'
-                : 'border-neutral-200 bg-white text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900'
+                ? 'border-primary-200 bg-primary-50 text-primary-800 dark:border-primary-700/60 dark:bg-primary-900/50 dark:text-primary-100'
+                : 'border-neutral-200 bg-white text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
             }`}
           >
             {stage.replace('...', '')}
@@ -1079,7 +1079,7 @@ const ScannerPage: React.FC = () => {
             <Button variant="primary" className="w-full sm:w-auto px-8 py-3 text-lg font-bold flex items-center justify-center gap-2" onClick={handleScan} disabled={isScanning}>
               {isScanning ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" /> Preparing scan...
+                  <Loader2 className="w-5 h-5 animate-spin" /> We are optimizing...
                 </>
               ) : (
                 'Scan My Resume'
@@ -1693,25 +1693,26 @@ const ScannerPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Safe to Apply Issues */}
+                  {/* Issues Section */}
                   {(() => {
-                    const safeIssues = (scanResult.issues || []).filter(i => i.apply_by_default !== false && i.original_text && i.replacement_text);
-                    const manualIssues = (scanResult.issues || []).filter(i => i.apply_by_default === false || !i.original_text || !i.replacement_text);
-                    // Also include legacy issues without structured fields
+                    // All issues that have a concrete copy-paste replacement
+                    const copyPasteIssues = (scanResult.issues || []).filter(i => i.original_text && i.replacement_text);
+                    // Legacy issues or issues without a replacement text (like missing dates)
                     const legacyIssues = (scanResult.issues || []).filter(i => !i.original_text && (i.highlight || i.suggestion));
-                    const allManual = [...manualIssues, ...legacyIssues.filter(li => !manualIssues.includes(li))];
+                    const reviewIssues = (scanResult.issues || []).filter(i => !copyPasteIssues.includes(i) && !legacyIssues.includes(i));
+                    const allReview = [...reviewIssues, ...legacyIssues];
 
                     return (
                       <>
-                        {safeIssues.length > 0 && (
+                        {copyPasteIssues.length > 0 && (
                           <div className="mt-5">
                             <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-green-600" />
-                              Safe to Apply ({safeIssues.length})
+                              Suggested Improvements ({copyPasteIssues.length})
                             </h4>
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                              {safeIssues.map((issue, index) => (
-                                <div key={`safe-${index}`} className="rounded-lg border border-green-200 bg-white p-4 dark:border-green-800/50 dark:bg-neutral-900">
+                              {copyPasteIssues.map((issue, index) => (
+                                <div key={`suggested-${index}`} className="rounded-lg border border-green-200 bg-white p-4 dark:border-green-800/50 dark:bg-neutral-900">
                                   <div className="mb-2 flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -1739,15 +1740,15 @@ const ScannerPage: React.FC = () => {
                           </div>
                         )}
 
-                        {allManual.length > 0 && (
+                        {allReview.length > 0 && (
                           <div className="mt-5">
                             <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-3 flex items-center gap-2">
                               <AlertTriangle className="w-4 h-4 text-amber-600" />
-                              Needs Manual Review ({allManual.length})
+                              Review Needed ({allReview.length})
                             </h4>
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                              {allManual.map((issue, index) => (
-                                <div key={`manual-${index}`} className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-800/50 dark:bg-neutral-900">
+                              {allReview.map((issue, index) => (
+                                <div key={`review-${index}`} className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-800/50 dark:bg-neutral-900">
                                   <div className="mb-2 flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-sm font-semibold text-neutral-900 dark:text-white">

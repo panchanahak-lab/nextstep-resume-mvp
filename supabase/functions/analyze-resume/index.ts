@@ -3,7 +3,7 @@ import { generateGeminiContent } from "../_shared/gemini.ts";
 import { checkRateLimit, getServiceClient, requireUser } from "../_shared/supabase.ts";
 
 const ATS_MODEL = "gemini-2.5-flash";
-const SCORING_VERSION = "ats_v1";
+const SCORING_VERSION = "ats_v2";
 
 // ---------- helpers ----------
 
