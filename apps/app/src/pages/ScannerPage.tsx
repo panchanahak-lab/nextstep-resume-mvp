@@ -1775,9 +1775,7 @@ const ScannerPage: React.FC = () => {
                                       <span className="text-xs font-semibold text-neutral-500 uppercase">Guidance</span>
                                       <p className="text-blue-900 dark:text-blue-200">{issue.suggestion}</p>
                                     </div>
-                                  ) : (
-                                    <p className="text-xs text-neutral-500 italic">Please verify and correct this manually.</p>
-                                  )}
+                                  ) : null}
                                 </div>
                               ))}
                             </div>

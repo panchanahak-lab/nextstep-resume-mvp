@@ -460,8 +460,8 @@ DATE HANDLING RULES — VERY IMPORTANT:
 
 ISSUES RULES:
 - Each issue must have original_text that exactly matches text in the resume.
-- replacement_text must be the exact drop-in replacement. For uncertain changes (dates, context-dependent), set replacement_text to empty string.
-- Set apply_by_default to true ONLY for safe, non-destructive text improvements (grammar fixes, keyword additions, bullet rewrites). Set it to false for date corrections, removals, or any change where the correct value is uncertain.
+- replacement_text must be the exact drop-in replacement. For dates where the correct date is unknown, set replacement_text to an empty string. For ALL other issues (e.g. generic summaries, soft skills, vague statements), you MUST provide a concrete, copy-paste ready improved version in replacement_text based on the CV context.
+- Set apply_by_default to true ONLY for safe, non-destructive text improvements (grammar fixes, keyword additions, bullet rewrites). Set it to false for date corrections, removals, or context-dependent rewrites where user review is needed.
 - Do NOT output an issue if original_text equals replacement_text (no actual change).
 
 Do not generate the final score. Do not estimate any score. Do not assign points. Only return structured analysis data. The backend scoring engine will calculate all scores. Do not remove any useful AI capability. Only prevent AI from inventing the final score.`;
