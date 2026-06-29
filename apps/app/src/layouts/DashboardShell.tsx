@@ -13,7 +13,7 @@ const pageTitles: Record<string, string> = {
   '/settings': 'Settings',
 };
 
-const DashboardShell: React.FC = () => {
+const DashboardShell: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const location = useLocation();
@@ -55,7 +55,7 @@ const DashboardShell: React.FC = () => {
         />
         <main className="min-h-[calc(100vh-4rem)] overflow-y-auto relative px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            {children || <Outlet />}
           </div>
           <AuthenticationModal 
             isOpen={authModalOpen} 
