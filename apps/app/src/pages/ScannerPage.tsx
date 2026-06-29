@@ -978,15 +978,52 @@ const ScannerPage: React.FC = () => {
       </html>`;
 
     if (format === 'word') {
-      const blob = new Blob(['\ufeff', docHtml], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'NextStep-Revised-Resume.doc';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      const previewWindow = window.open('', '_blank');
+      if (previewWindow) {
+        // Add a top bar for downloading the document to mimic a 'preview' window
+        const previewHtml = `
+          <!doctype html>
+          <html>
+            <head>
+              <title>MS Word Preview</title>
+              <style>
+                body { margin: 0; background: #525659; font-family: sans-serif; }
+                .topbar { background: #323639; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; color: white; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+                .topbar button { background: #8ab4f8; color: #202124; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+                .topbar button:hover { background: #aecbfa; }
+                .page-container { background: white; max-width: 210mm; min-height: 297mm; margin: 24px auto; padding: 14mm; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+              </style>
+            </head>
+            <body>
+              <div class="topbar">
+                <span>MS Word Document Preview</span>
+                <button id="downloadBtn">Download .doc</button>
+              </div>
+              <div class="page-container">
+                <iframe id="docFrame" style="width:100%; height: 297mm; border: none;" srcdoc="${escapeHtml(docHtml)}"></iframe>
+              </div>
+              <script>
+                document.getElementById('downloadBtn').addEventListener('click', () => {
+                  const blob = new Blob(['\\ufeff', \`${docHtml.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`], { type: 'application/msword' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = 'NextStep-Revised-Resume.doc';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setTimeout(() => URL.revokeObjectURL(url), 5000);
+                });
+              </script>
+            </body>
+          </html>
+        `;
+        previewWindow.document.write(previewHtml);
+        previewWindow.document.close();
+        previewWindow.focus();
+      } else {
+        alert('Please allow popups to preview the document.');
+      }
     } else if (format === 'pdf') {
       const printWindow = window.open('', '_blank');
       if (printWindow) {
