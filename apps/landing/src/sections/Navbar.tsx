@@ -20,7 +20,7 @@ const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="font-bold text-2xl text-blue-600 dark:text-blue-400 tracking-tight">
-            NextStep
+            NextStep <span className="text-neutral-900 dark:text-white">Resume</span>
           </Link>
 
           {/* Desktop Right side */}

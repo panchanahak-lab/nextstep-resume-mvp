@@ -50,7 +50,7 @@ const plans = [
   {
     name: 'Free',
     price: '₹0',
-    description: 'Try NextStep and see the difference.',
+    description: 'Try NextStep Resume and see the difference.',
     benefits: ['1 resume scan', 'Basic resume builder', 'Sample AI mock interview'],
     cta: 'Start free',
   },
@@ -74,7 +74,10 @@ const plans = [
 const Logo: React.FC = () => (
   <div className="ns-logo" aria-label="NextStep">
     <img src={markUrl} alt="" />
-    <span>NextStep</span>
+    <span>
+      <span className="text-primary-600 dark:text-primary-500">NextStep</span>{' '}
+      <span className="text-neutral-900 dark:text-white">Resume</span>
+    </span>
   </div>
 );
 
@@ -252,7 +255,7 @@ const LandingPage: React.FC = () => {
         <section className="ns-hero" id="features">
           <div className="ns-hero-copy">
             <div className="ns-eyebrow">AI-powered resume builder, scanner and mock interviews</div>
-            <h1>Land your dream job faster with NextStep AI</h1>
+            <h1>Land your dream job faster with NextStep Resume AI</h1>
             <p>Upload your resume, get an instant score, and know exactly what to improve before your next application.</p>
 
             <div className="ns-upload-panel">

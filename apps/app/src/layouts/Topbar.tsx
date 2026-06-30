@@ -129,7 +129,7 @@ const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onDesktopMenuClick, deskto
           </button>
           
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">NextStep</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">NextStep Resume</p>
             <h1 className="text-lg font-bold text-neutral-950 dark:text-white">{title}</h1>
           </div>
         </div>

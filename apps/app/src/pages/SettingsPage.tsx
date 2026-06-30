@@ -34,7 +34,7 @@ const SettingsPage: React.FC = () => {
       {/* Appearance */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1">Appearance</h3>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">Customize how NextStep looks for you.</p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">Customize how NextStep Resume looks for you.</p>
         <div className="flex items-center justify-between py-3">
           <div>
             <span className="text-sm text-neutral-700 dark:text-neutral-300">Theme</span>

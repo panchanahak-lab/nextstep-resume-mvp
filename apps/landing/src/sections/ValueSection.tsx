@@ -20,7 +20,7 @@ const ValueSection: React.FC = () => {
               Built for Every Job Seeker
             </h2>
             <p className="text-lg text-gray-600 dark:text-neutral-400 mb-8 leading-relaxed">
-              Whether you are a fresher, experienced professional, diploma holder, or career switcher, NextStep helps you create a professional resume, check ATS readiness, and practice live AI interviews in your preferred language.
+              Whether you are a fresher, experienced professional, diploma holder, or career switcher, NextStep Resume helps you create a professional resume, check ATS readiness, and practice live AI interviews in your preferred language.
             </p>
             <ul className="space-y-4">
               {benefits.map((benefit, index) => (

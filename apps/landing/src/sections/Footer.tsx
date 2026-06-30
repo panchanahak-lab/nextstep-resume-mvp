@@ -17,7 +17,9 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           {/* Col 1 — Brand */}
           <div className="lg:col-span-2">
-            <h3 className="text-2xl font-bold text-white tracking-tight mb-4">NextStep</h3>
+            <h3 className="text-2xl font-bold tracking-tight mb-4">
+              <span className="text-blue-500">NextStep</span> <span className="text-white">Resume</span>
+            </h3>
             <p className="text-gray-400 leading-relaxed max-w-sm">
               NextStep helps Indian job seekers create resumes, check ATS readiness, and practice interviews with AI.
             </p>
@@ -55,7 +57,7 @@ const Footer: React.FC = () => {
         <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-neutral-500">
           <p>Built in India, for India.</p>
           <div className="flex items-center gap-4">
-            <p>© {new Date().getFullYear()} NextStep. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} NextStep Resume. All rights reserved.</p>
           </div>
         </div>
       </div>

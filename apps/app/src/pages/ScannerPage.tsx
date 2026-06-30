@@ -134,7 +134,7 @@ const ResumeScanProgress: React.FC<{ stageIndex: number; hasTargetRole: boolean 
             {stages[Math.min(stageIndex, stages.length - 1)]}
           </p>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-            NextStep is analyzing the resume and preparing a revised ATS-friendly draft.
+            NextStep Resume is analyzing the resume and preparing a revised ATS-friendly draft.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1537,7 +1537,7 @@ const ScannerPage: React.FC = () => {
               </p>
             )}
             <p className="mt-3 text-sm text-neutral-500 max-w-2xl">
-              NextStep compares your resume with job requirements using transparent scoring formulas and detailed AI analysis.
+              NextStep Resume compares your resume with job requirements using transparent scoring formulas and detailed AI analysis.
             </p>
           </div>
 
@@ -1634,10 +1634,10 @@ const ScannerPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-3 text-primary-600 dark:text-primary-400">
                       <ShieldCheck className="w-6 h-6" />
-                      <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Why NextStep is Transparent</h3>
+                      <h3 className="text-lg font-bold text-neutral-900 dark:text-white">Why NextStep Resume is Transparent</h3>
                     </div>
                     <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4">
-                      “NextStep does not use fake AI scoring. AI analyzes your resume deeply, but your final score is calculated using a transparent scoring formula. This makes the result more consistent, explainable, and trustworthy.”
+                      “NextStep Resume does not use fake AI scoring. AI analyzes your resume deeply, but your final score is calculated using a transparent scoring formula. This makes the result more consistent, explainable, and trustworthy.”
                     </p>
                   </div>
                   <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">

@@ -14,7 +14,10 @@ const planBenefits = [
 const Logo: React.FC = () => (
   <Link to="/" className="ns-logo" aria-label="NextStep home">
     <img src={markUrl} alt="" />
-    <span>NextStep</span>
+    <span>
+      <span className="text-primary-600 dark:text-primary-500">NextStep</span>{' '}
+      <span className="text-neutral-900 dark:text-white">Resume</span>
+    </span>
   </Link>
 );
 

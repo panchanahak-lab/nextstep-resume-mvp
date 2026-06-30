@@ -77,11 +77,13 @@ const navItems = [
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, desktopIsOpen = true, onClose }) => {
   const sidebarContent = (
     <div className="app-sidebar text-white w-64 min-h-screen flex flex-col">
-      {/* Logo */}
       <div className="p-5 flex items-center gap-3">
         <span className="app-logo-mark">N</span>
         <div>
-          <span className="block text-xl font-bold text-neutral-950 dark:text-white">NextStep</span>
+          <span className="block text-xl font-bold">
+            <span className="text-primary-600 dark:text-primary-500">NextStep</span>{' '}
+            <span className="text-neutral-950 dark:text-white">Resume</span>
+          </span>
           <span className="block text-xs app-muted">Career readiness AI</span>
         </div>
       </div>
