@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, Check, ChevronDown, Download, Eye, FileText, Loader2, Palette, Printer, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, Eye, FileText, Loader2, Palette, Printer, RotateCcw, X } from 'lucide-react';
 import type { ResumeData } from '../../../../packages/shared/src/types';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
 import Button from '../../../../packages/shared/src/components/Button';
@@ -82,6 +82,9 @@ const BuilderPage: React.FC = () => {
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState('basic-info');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryVisible, setSummaryVisible] = useState(true);
+  const [hasSummaryBeenGenerated, setHasSummaryBeenGenerated] = useState(false);
 
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
   const [resumeOwnerId, setResumeOwnerId] = useState<string | null>(null);
@@ -179,6 +182,27 @@ const BuilderPage: React.FC = () => {
     setShowTemplateModal(false);
     setLockedTemplateId(null);
   }, [currentPlan]);
+
+  const existingGenerateSummaryFunction = useCallback(() => {
+    alert(COPY.BUILDER.successMessage);
+  }, []);
+
+  const triggerSummaryFadeIn = useCallback(() => {
+    setSummaryVisible(false);
+    window.setTimeout(() => setSummaryVisible(true), 50);
+  }, []);
+
+  const handleGenerateSummary = useCallback(async () => {
+    setIsGeneratingSummary(true);
+    try {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await Promise.resolve(existingGenerateSummaryFunction());
+      setHasSummaryBeenGenerated(true);
+      triggerSummaryFadeIn();
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  }, [existingGenerateSummaryFunction, triggerSummaryFadeIn]);
 
   const improveBulletText = useCallback(async (text: string) => {
     const supabase = getSupabaseClient();
@@ -301,16 +325,35 @@ const BuilderPage: React.FC = () => {
             selectedTemplate={selectedTemplate}
             profilePhoto={profilePhoto}
             onProfilePhotoChange={setProfilePhoto}
+            summaryVisible={summaryVisible}
           />
 
           {/* Action Buttons */}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button
-              variant="primary"
-              onClick={() => alert(COPY.BUILDER.successMessage)}
-            >
-              Generate AI Summary
-            </Button>
+            <div className="flex items-center">
+              <Button
+                variant="primary"
+                onClick={handleGenerateSummary}
+                disabled={isGeneratingSummary}
+                className={isGeneratingSummary ? 'cursor-not-allowed opacity-70' : ''}
+              >
+                <span className="inline-flex items-center gap-2">
+                  {isGeneratingSummary && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isGeneratingSummary ? 'Writing your summary...' : 'Generate AI Summary'}
+                </span>
+              </Button>
+              {hasSummaryBeenGenerated && (
+                <button
+                  type="button"
+                  onClick={handleGenerateSummary}
+                  disabled={isGeneratingSummary}
+                  title="Regenerate summary"
+                  className="ml-2 rounded-lg border border-gray-600 p-2 text-gray-400 transition-all hover:border-gray-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <Button
               variant="secondary"
               onClick={handleImproveResume}

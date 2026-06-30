@@ -13,11 +13,13 @@ interface ResumeFormProps {
   selectedTemplate: string;
   profilePhoto: string | null;
   onProfilePhotoChange: (photo: string | null) => void;
+  summaryVisible: boolean;
 }
 
-const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange, selectedTemplate, profilePhoto, onProfilePhotoChange }) => {
+const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange, selectedTemplate, profilePhoto, onProfilePhotoChange, summaryVisible }) => {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoError, setPhotoError] = useState('');
+  const summaryLength = data.summary?.length ?? 0;
 
   const updateField = <K extends keyof ResumeData>(key: K, value: ResumeData[K]) => {
     onChange({ ...data, [key]: value });
@@ -176,13 +178,20 @@ const ResumeForm: React.FC<ResumeFormProps> = ({ data, onChange, selectedTemplat
       <div id="summary">
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-4">Professional Summary</h3>
-          <Textarea
-            label="Summary"
-            value={data.summary}
-            onChange={(e) => updateField('summary', e.target.value)}
-            rows={4}
-            helperText={COPY.BUILDER.summaryHelper}
-          />
+          <div className={`transition-opacity duration-500 ${summaryVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <Textarea
+              label="Summary"
+              value={data.summary}
+              onChange={(e) => updateField('summary', e.target.value)}
+              rows={4}
+              placeholder="e.g., Results-driven Project Engineer with 4+ years of experience in data center infrastructure, quality control, and cross-functional team leadership. Proven track record of delivering complex projects on time..."
+              helperText={COPY.BUILDER.summaryHelper}
+              className={summaryLength > 400 ? '[&_textarea]:border-red-500 [&_textarea]:focus:ring-red-500' : ''}
+            />
+          </div>
+          <div className={`mt-1 text-right text-xs ${summaryLength > 400 ? 'text-red-400' : 'text-gray-500'}`}>
+            {summaryLength} / 400 characters
+          </div>
         </Card>
       </div>
 
