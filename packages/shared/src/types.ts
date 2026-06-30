@@ -24,6 +24,10 @@ export interface ResumeData {
   location: string;
   email: string;
   phone: string;
+  linkedinUrl: string;
+  portfolioUrl: string;
+  dateOfBirth: string;
+  gender: '' | 'Male' | 'Female' | 'Prefer not to say';
   summary: string;
   experience: Experience[];
   education: Education[];

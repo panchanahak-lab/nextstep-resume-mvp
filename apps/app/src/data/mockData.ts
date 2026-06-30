@@ -6,6 +6,10 @@ export const mockResumeData: ResumeData = {
   location: 'Mumbai, India',
   email: 'rajesh.kumar@email.com',
   phone: '+91 98765 43210',
+  linkedinUrl: '',
+  portfolioUrl: '',
+  dateOfBirth: '',
+  gender: '',
   summary: 'Experienced mechanical engineer with 8+ years in HVAC systems, data center infrastructure, and project management. Proven track record in designing and commissioning cooling systems for Tier III and Tier IV data centers.',
   experience: [
     { jobTitle: 'Senior Mechanical Engineer', company: 'DataTech Solutions Pvt Ltd', startDate: 'Jan 2021', endDate: 'Present', description: 'Lead mechanical design for data center cooling systems. Managed HVAC installations for 3 Tier III facilities. Reduced energy consumption by 18% through optimized cooling design.' },
