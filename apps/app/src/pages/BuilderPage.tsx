@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle, Check, ChevronDown, Download, Eye, FileText, Loader2, Palette, Printer, RotateCcw, X } from 'lucide-react';
 import type { ResumeData } from '../../../../packages/shared/src/types';
 import { COPY, getSupabaseClient } from '@nextstep/shared';
@@ -70,6 +70,33 @@ const BuilderStepIndicator: React.FC<{ steps: typeof BUILDER_STEPS; activeStep: 
     </div>
   );
 };
+
+const ResumeStrengthMeter: React.FC<{ score: number; label: string; colorClass: string; nudge: string }> = ({
+  score,
+  label,
+  colorClass,
+  nudge,
+}) => (
+  <div className="mb-3 px-1">
+    <div className="mb-1.5 flex items-center justify-between">
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-300">
+        Resume Strength
+      </span>
+      <span className={`rounded-full px-2 py-0.5 text-xs font-bold text-white ${colorClass}`}>
+        {label} {'\u00B7'} {score}%
+      </span>
+    </div>
+    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-700">
+      <div
+        className={`h-2 rounded-full transition-all duration-500 ${colorClass}`}
+        style={{ width: `${score}%` }}
+      />
+    </div>
+    <p className="mt-1.5 text-xs leading-snug text-gray-400">
+      {nudge}
+    </p>
+  </div>
+);
 
 const BuilderPage: React.FC = () => {
   const [resumeData, setResumeData] = useState<ResumeData>(emptyResumeData);
@@ -203,6 +230,46 @@ const BuilderPage: React.FC = () => {
       setIsGeneratingSummary(false);
     }
   }, [existingGenerateSummaryFunction, triggerSummaryFadeIn]);
+
+  const resumeStrength = useMemo(() => {
+    const hasName = resumeData.name.trim().length > 0;
+    const hasTitle = resumeData.title.trim().length > 0;
+    const hasSummary = resumeData.summary.trim().length >= 50;
+    const hasExperience = resumeData.experience.length >= 1;
+    const hasEducation = resumeData.education.length >= 1;
+    const hasSkills = resumeData.skills.filter((skill) => skill.trim()).length >= 3;
+    const hasContact = resumeData.phone.trim().length > 0 && resumeData.email.trim().length > 0;
+
+    const score = [
+      hasName ? 10 : 0,
+      hasTitle ? 10 : 0,
+      hasSummary ? 15 : 0,
+      hasExperience ? 20 : 0,
+      hasEducation ? 15 : 0,
+      hasSkills ? 15 : 0,
+      hasContact ? 15 : 0,
+    ].reduce((total, points) => total + points, 0);
+
+    const label = score <= 40 ? 'Weak' : score <= 70 ? 'Good Start' : score <= 90 ? 'Strong' : 'Excellent';
+    const colorClass = score <= 40 ? 'bg-red-500' : score <= 70 ? 'bg-orange-400' : score <= 90 ? 'bg-blue-500' : 'bg-green-500';
+    const nudge = !hasExperience
+      ? '\u2192 Add at least one work experience entry'
+      : !hasSummary
+        ? '\u2192 Write a professional summary (min. 50 characters)'
+        : !hasEducation
+          ? '\u2192 Add your education details'
+          : !hasSkills
+            ? '\u2192 Add at least 3 skills'
+            : !hasContact
+              ? '\u2192 Add your phone number and email address'
+              : !hasName
+                ? '\u2192 Enter your full name'
+                : !hasTitle
+                  ? '\u2192 Add your job title'
+                  : '\uD83C\uDF89 Your resume is complete! Download it now.';
+
+    return { score, label, colorClass, nudge };
+  }, [resumeData]);
 
   const improveBulletText = useCallback(async (text: string) => {
     const supabase = getSupabaseClient();
@@ -399,6 +466,12 @@ const BuilderPage: React.FC = () => {
             <span>↓</span>
             <span>Download PDF</span>
           </button>
+          <ResumeStrengthMeter
+            score={resumeStrength.score}
+            label={resumeStrength.label}
+            colorClass={resumeStrength.colorClass}
+            nudge={resumeStrength.nudge}
+          />
           <ResumePreview data={resumeData} selectedTemplate={selectedTemplate} profilePhoto={profilePhoto} />
         </div>
       </div>
@@ -426,6 +499,12 @@ const BuilderPage: React.FC = () => {
               </button>
             </div>
             <div className="p-4 pb-24">
+              <ResumeStrengthMeter
+                score={resumeStrength.score}
+                label={resumeStrength.label}
+                colorClass={resumeStrength.colorClass}
+                nudge={resumeStrength.nudge}
+              />
               <ResumePreview data={resumeData} selectedTemplate={selectedTemplate} profilePhoto={profilePhoto} />
             </div>
             <div className="sticky bottom-0 border-t border-neutral-800 bg-neutral-950 p-4">
