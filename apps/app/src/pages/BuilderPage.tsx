@@ -389,7 +389,16 @@ const BuilderPage: React.FC = () => {
         </div>
 
         {/* Right: Preview */}
-        <div className="hidden lg:mt-0 lg:block lg:sticky lg:top-6 lg:self-start">
+        <div className="relative hidden lg:mt-0 lg:block lg:sticky lg:top-6 lg:self-start">
+          <button
+            type="button"
+            onClick={handlePreviewPdf}
+            title="Download Resume as PDF"
+            className="hidden lg:flex absolute top-3 right-3 z-10 items-center gap-1.5 bg-white text-blue-600 hover:bg-blue-50 text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md border border-blue-100 transition-all duration-200"
+          >
+            <span>↓</span>
+            <span>Download PDF</span>
+          </button>
           <ResumePreview data={resumeData} selectedTemplate={selectedTemplate} profilePhoto={profilePhoto} />
         </div>
       </div>
